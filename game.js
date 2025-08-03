@@ -13,8 +13,8 @@ let selectedBallIndex = 0;
 
 const platformImg = new Image(); platformImg.src = 'assets/woodPlatform1.png';
 const jumpImg = new Image(); jumpImg.src = 'assets/jumpSprite3.png';
-const leftGloveImg = new Image(); leftGloveImg.src = 'assets/leftglove.png';
-const rightGloveImg = new Image(); rightGloveImg.src = 'assets/rightglove.png';
+const leftGloveImg = new Image(); leftGloveImg.src = 'assets/leftGlove.png';
+const rightGloveImg = new Image(); rightGloveImg.src = 'assets/rightGlove.png';
 const backgroundImg = new Image(); backgroundImg.src = 'assets/background.jpg';
 const menuIconImg = new Image(); menuIconImg.src = 'assets/menuIcon.png';
 
