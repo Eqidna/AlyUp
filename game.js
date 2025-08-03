@@ -1453,7 +1453,7 @@ function update(deltaTime) {
     }
 
     const scrollScore = getScrollScore();
-    if (scrollScore - lastGloveScore >= 1000) {
+    if (scrollScore - lastGloveScore >= 100) {
         lastGloveScore = scrollScore;
         spawnGlove();
     }
