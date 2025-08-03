@@ -60,3 +60,8 @@ body {
         display: none; /* Hide toggle on mobile */
     }
 }
+
+@font-face {
+    font-family: 'Bitcount prop single';
+    src: url('assets/fonts/BitcountPropSingle.woff2') format('woff2');
+}
