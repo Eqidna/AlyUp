@@ -2,6 +2,41 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// game.js (top, with image declarations)
+const gloveFlySound = new Audio('assets/glove_fly.wav');
+const jumpSpriteSound = new Audio('assets/jump_sprite.wav');
+const gloveCollectSound = new Audio('assets/glove_collect.wav');
+const boostSound = new Audio('assets/boost.wav');
+const platformBounceSound = new Audio('assets/platform_bounce.wav');
+const levelCompleteSound = new Audio('assets/level_complete.wav');
+const levelSelectSound = new Audio('assets/level_select.wav');
+const ballSelectSound = new Audio('assets/ball_select.wav');
+const ballSounds = {
+    ball1: new Audio('assets/ball1_sound.wav'),
+    ball2: new Audio('assets/ball2_sound.wav'),
+    ball3: new Audio('assets/ball3_sound.wav') // Add more for each ball
+};
+const backgroundMusicTracks = Array.from({ length: 10 }, (_, i) => {
+    const audio = new Audio(`assets/bgm_${i + 1}.mp3`);
+    audio.loop = true;
+    audio.volume = 0.5;
+    return audio;
+});
+
+// Error handling for all audio
+const allSounds = [
+    gloveFlySound, jumpSpriteSound, gloveCollectSound, boostSound,
+    platformBounceSound, levelCompleteSound, levelSelectSound, ballSelectSound,
+    ...Object.values(ballSounds), ...backgroundMusicTracks
+];
+allSounds.forEach(audio => {
+    audio.onerror = () => console.error(`Failed to load ${audio.src}`);
+    audio.oncanplaythrough = () => console.log(`Loaded ${audio.src}`);
+});
+
+// Current music track
+let currentMusicTrack = null;
+
 // Load assets (including background)
 const playerImg1 = new Image(); playerImg1.src = 'assets/ball1.png';
 const playerImg2 = new Image(); playerImg2.src = 'assets/ball2.png';
@@ -40,6 +75,17 @@ let opacityTime = 0; // Time accumulator for animation
 const OPACITY_DURATION = 500; // 2 seconds for transition and hold
 let currentOpacity = 0.1; // Starting opacity
 let animationState = 'rising'; // States: 'rising', 'highHold', 'falling', 'lowHold'
+
+function playBackgroundMusic(level) {
+    const trackIndex = Math.floor((level - 1) / 10); // Levels 1-10: bgm_1, 11-20: bgm_2, etc.
+    const newTrack = backgroundMusicTracks[trackIndex];
+    if (currentMusicTrack !== newTrack) {
+        if (currentMusicTrack) currentMusicTrack.pause();
+        currentMusicTrack = newTrack;
+        currentMusicTrack.currentTime = 0;
+        currentMusicTrack.play().catch(e => console.error('Background music error:', e));
+    }
+}
 
 function updateOpacityAnimation(deltaTime) {
     opacityTime += deltaTime * 1000; // Convert to milliseconds
@@ -1278,6 +1324,7 @@ const drawTouchButtons = setupTouchControls();
 
 // Ball selection popup
 function showBallSelectionPopup() {
+    ballSelectSound.play().catch(e => console.error('Ball select sound error:', e));
     const popup = document.createElement('div');
     popup.style.position = 'absolute';
     popup.style.top = '50%';
@@ -1313,6 +1360,11 @@ function showBallSelectionPopup() {
 }
 
 function selectBall(index) {
+    // e.g., 'ball1', 'ball2', 'ball3'
+    const sound = ballSounds[ballType];
+    if (sound) {
+        sound.play().catch(e => console.error(`Ball ${ballType} sound error:`, e));
+    }
     selectedBallIndex = index;
     document.body.removeChild(document.querySelector('div[style*="z-index: 1000"]'));
     if (player) player.playerImg = ballImages[selectedBallIndex];
@@ -1321,6 +1373,10 @@ function selectBall(index) {
 // Input handling
 window.addEventListener('keydown', (e) => keys.add(e.key));
 window.addEventListener('keyup', (e) => keys.delete(e.key));
+
+document.addEventListener('click', () => {
+    if (currentLevel > 0) playBackgroundMusic(currentLevel);
+}, { once: true });
 
 // Game functions
 function getScrollScore() {
@@ -1407,9 +1463,35 @@ function resetLevel(level) {
     canvas.onclick = null;
     setupLevelEffect(level);
     checkNewPlatform();
+    playBackgroundMusic(level);
 }
 
+let lastGloveFlySound = 0;
 function update(deltaTime) {
+
+ const now = performance.now();
+    gloves.forEach(glove => {
+        glove.x += glove.velocityX * deltaTime;
+        if (glove.velocityX !== 0 && now - lastGloveFlySound > 500) { // 500ms cooldown
+            gloveFlySound.play().catch(e => console.error('Glove fly sound error:', e));
+            lastGloveFlySound = now;
+        }
+    });
+
+    if (playerCollidesWithJumpSprite()) {
+    jumpSpriteSound.play().catch(e => console.error('Jump sprite sound error:', e));
+    // Apply bounce (e.g., player.velocityY = -jumpStrength)
+}
+
+if (playerUsesBoost()) { // Adjust based on your boost logic
+    boostSound.play().catch(e => console.error('Boost sound error:', e));
+}
+
+if (playerCollidesWithPlatform()) {
+    platformBounceSound.play().catch(e => console.error('Platform bounce sound error:', e));
+    // Apply bounce logic
+}
+
     if (currentLevel === 0) return;
 
     if (levelComplete) {
@@ -1489,6 +1571,16 @@ const GRID_START_Y = canvas.height / 2 - 150;
 
 
 function drawMenu() {
+if (mouseX >= ballButton.x && mouseX <= ballButton.x + ballButton.width &&
+    mouseY >= ballButton.y && mouseY <= ballButton.y + ballButton.height) {
+    ballSelectSound.play().catch(e => console.error('Ball select sound error:', e));
+    showBallSelectionPopup();
+
+
+    if (currentMusicTrack) currentMusicTrack.pause();
+
+
+    
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1572,6 +1664,15 @@ function drawMenu() {
         const col = (level - 1) % LEVELS_PER_ROW;
         const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
         const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
+
+        // Check if the level has been completed and if all levels are unlocked  
+        if (mouseX >= x && mouseX <= x + BUTTON_WIDTH && mouseY >= y && mouseY <= y + BUTTON_HEIGHT) {
+            levelSelectSound.play().catch(e => console.error('Level select sound error:', e));
+            resetLevel(level);
+            break;
+        }
+    }
+
         ctx.fillStyle = (level <= highestLevelCompleted + 1 || allLevelsUnlocked) ? '#080816ff' : '#555'; // Gray for locked
         ctx.fillRect(x, y, BUTTON_WIDTH, BUTTON_HEIGHT);
         ctx.fillStyle = '#fff';
@@ -1848,6 +1949,7 @@ function draw() {
     drawTouchButtons(); // Add touch button rendering
 
     if (levelComplete) {
+        levelCompleteSound.play().catch(e => console.error('Level complete sound error:', e));
         ctx.fillStyle = '#080816ff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.font = '40px Arial';
