@@ -1,6 +1,10 @@
+import { AudioManager } from './audio.js';
+
 // Canvas setup
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+
+
 
 // Load assets (including background)
 const playerImg1 = new Image(); playerImg1.src = 'assets/ball1.png';
@@ -13,9 +17,18 @@ let selectedBallIndex = 0;
 
 const platformImg = new Image(); platformImg.src = 'assets/woodPlatform1.png';
 const jumpImg = new Image(); jumpImg.src = 'assets/jumpSprite3.png';
-const leftGloveImg = new Image(); leftGloveImg.src = 'assets/leftglove.png';
-const rightGloveImg = new Image(); rightGloveImg.src = 'assets/rightglove.png';
+const leftGloveImg = new Image(); leftGloveImg.src = 'assets/leftGlove.png';
+const rightGloveImg = new Image(); rightGloveImg.src = 'assets/rightGlove.png';
 const backgroundImg = new Image(); backgroundImg.src = 'assets/background.jpg';
+const menuIconImg = new Image(); menuIconImg.src = 'assets/menuIcon.png';
+
+// Load button icons
+const leftArrowImg = new Image(); leftArrowImg.src = 'assets/leftArrow.png';
+const upArrowImg = new Image(); upArrowImg.src = 'assets/upArrow.png';
+const rightArrowImg = new Image(); rightArrowImg.src = 'assets/rightArrow.png';
+
+// Initialize AudioManager
+const audioManager = new AudioManager();
 
 // Three.js setup
 const backgroundDiv = document.getElementById('background');
@@ -623,6 +636,7 @@ function createFireworks(level) {
     let lastSpawnTime = 0;
     const spawnInterval = 1.2;
 
+    // Star field (from createFireworks)
     const baseStarCount = 6000;
     const starCount = level > 8 ? Math.floor(baseStarCount * (1 + (level - 1) / 50)) : baseStarCount;
     const starsGeometry = new THREE.BufferGeometry();
@@ -648,10 +662,11 @@ function createFireworks(level) {
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     group.add(stars);
 
+    // Firework spawning (from createFireworks)
     const spawnFirework = () => {
         const launchGeometry = new THREE.BufferGeometry();
         const launchMaterial = new THREE.PointsMaterial({
-            color: new THREE.Color().setHSL(0, 1, 0.5),
+            color: new THREE.Color().setHSL(Math.random(), 1, 0.5), // Random color for variety
             size: 0.5,
             transparent: true,
             opacity: 1.0
@@ -665,7 +680,37 @@ function createFireworks(level) {
 
     for (let i = 0; i < 3; i++) spawnFirework();
 
+    // Lines (from createLines)
+    const baseLineCount = 250;
+    const lineCount = level > 8 ? Math.floor(baseLineCount * (1 + (level - 1) / 150)) : baseLineCount;
+    const lines = [];
+    const lineGeometries = [];
+    const lineHueOffsets = [];
+    for (let i = 0; i < lineCount; i++) {
+        const y = (Math.random() - 0.5) * 1000;
+        const z = (Math.random() - 0.5) * 10;
+        const length = Math.random() * 18 + 2;
+        const lineGeometry = new THREE.BufferGeometry();
+        const lineMaterial = new THREE.LineBasicMaterial({ vertexColors: true });
+        const positions = [-length / 2, 0, 0, length / 2, 0, 0];
+        const colors = [];
+        const hue1 = Math.random();
+        const hue2 = (hue1 + 0.3) % 1;
+        const color1 = new THREE.Color().setHSL(hue1, 1, 0.5);
+        const color2 = new THREE.Color().setHSL(hue2, 1, 0.5);
+        colors.push(color1.r, color1.g, color1.b, color2.r, color2.g, color2.b);
+        lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        lineGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        const line = new THREE.Line(lineGeometry, lineMaterial);
+        line.position.set(-10, y, z);
+        group.add(line);
+        lines.push(line);
+        lineGeometries.push(lineGeometry);
+        lineHueOffsets.push([hue1, hue2]);
+    }
+
     return function updateFireworks(deltaTime) {
+        // Update stars (from createFireworks)
         const starOpacities = starsGeometry.attributes.opacity.array;
         const starColors = starsGeometry.attributes.color.array;
         for (let i = 0; i < starCount; i++) {
@@ -681,24 +726,41 @@ function createFireworks(level) {
         starsGeometry.attributes.opacity.needsUpdate = true;
         starsGeometry.attributes.color.needsUpdate = true;
 
+        // Update fireworks (from createFireworks)
         lastSpawnTime += deltaTime;
         if (lastSpawnTime >= spawnInterval) {
             spawnFirework();
             lastSpawnTime = 0;
         }
-
         for (let i = fireworks.length - 1; i >= 0; i--) {
             const fw = fireworks[i];
             const pos = fw.obj.geometry.attributes.position.array;
             fw.time += deltaTime;
-
             if (fw.state === 'launch') {
                 pos[1] += 15 * deltaTime;
                 if (pos[1] >= 400) {
                     fw.state = 'ready';
                 }
             }
+            fw.obj.geometry.attributes.position.needsUpdate = true;
         }
+
+        // Update lines (from createLines)
+        lines.forEach((line, index) => {
+            if (index < lineCount) {
+                line.position.x += 2 * deltaTime;
+                if (line.position.x > 10) line.position.x = -10;
+                const colors = line.geometry.attributes.color.array;
+                lineHueOffsets[index][0] += deltaTime * 0.2;
+                lineHueOffsets[index][1] = (lineHueOffsets[index][0] + 0.3) % 1;
+                if (lineHueOffsets[index][0] > 1) lineHueOffsets[index][0] -= 1;
+                const color1 = new THREE.Color().setHSL(lineHueOffsets[index][0], 1, 0.5);
+                const color2 = new THREE.Color().setHSL(lineHueOffsets[index][1], 1, 0.5);
+                colors[0] = color1.r; colors[1] = color1.g; colors[2] = color1.b;
+                colors[3] = color2.r; colors[4] = color2.g; colors[5] = color2.b;
+                line.geometry.attributes.color.needsUpdate = true;
+            }
+        });
     };
 }
 
@@ -919,6 +981,7 @@ class Glove {
         this.particleSpawnInterval = 0.025; // Spawn a particle every 20ms (adjust for density)
         this.trailLength = 150; // Distance in pixels for particles to fade out (approx. a few inches)
         this.spreadAngle = Math.PI / 10; // Spread angle in radians (30 degrees, adjustable)
+        audioManager.playSfx('gloveFly'); // Play glove fly sound on spawn
     }
 
     update(deltaTime) {
@@ -1008,6 +1071,7 @@ class Player {
         if (keys.has('ArrowUp') && this.gloveCount >= 3 && !this.boostActive) {
             this.boostActive = true;
             this.gloveCount = 0; // Reset glove count
+            audioManager.playSfx('boost'); // Play boost sound
         }
         if (this.boostActive && this.vy < 0 && Math.abs(this.vy) < 100) {
             this.boostActive = false; // Deactivate after peak jump
@@ -1051,6 +1115,10 @@ const LEVEL_DURATION = 5000;
 const keys = new Set();
 const MAX_GLOVES = 5;
 const MAX_PLATFORMS = 100;
+let highestLevelCompleted = localStorage.getItem('highestLevelCompleted') ? parseInt(localStorage.getItem('highestLevelCompleted')) : 0; // Track completed levels
+let isMenuOpen = false; // Track menu state
+let isPaused = false; // Track pause state
+let allLevelsUnlocked = false; // Dev unlock toggle
 
 // Touch control setup (on-canvas buttons)
 function setupTouchControls() {
@@ -1060,16 +1128,15 @@ function setupTouchControls() {
     }
 
     // Button definitions
-    const buttonWidth = 70;
-    const buttonHeight = 50;
+    const buttonSize = 70; // Diameter of circular buttons
     const buttonSpacing = 30;
     const bottomMargin = 20;
-    const totalWidth = 3 * buttonWidth + 2 * buttonSpacing; // 270px
+    const totalWidth = 3 * buttonSize + 2 * buttonSpacing; // 270px
     const startX = (canvas.width - totalWidth) / 2; // Center: (700 - 270) / 2 = 215
     const buttons = [
-        { id: 'left', x: startX, y: canvas.height - buttonHeight - bottomMargin, width: buttonWidth, height: buttonHeight, key: 'ArrowLeft' },
-        { id: 'jump', x: startX + buttonWidth + buttonSpacing, y: canvas.height - buttonHeight - bottomMargin, width: buttonWidth, height: buttonHeight, key: 'ArrowUp' },
-        { id: 'right', x: startX + 2 * (buttonWidth + buttonSpacing), y: canvas.height - buttonHeight - bottomMargin, width: buttonWidth, height: buttonHeight, key: 'ArrowRight' }
+        { id: 'left', x: startX, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowLeft', img: leftArrowImg },
+        { id: 'jump', x: startX + buttonSize + buttonSpacing, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowUp', img: upArrowImg },
+        { id: 'right', x: startX + 2 * (buttonSize + buttonSpacing), y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowRight', img: rightArrowImg }
     ];
 
     // Toggle visibility state
@@ -1081,14 +1148,20 @@ function setupTouchControls() {
         });
     }
 
-    // Function to check if a point is within a button
+    // Function to check if a point is within a button (circular hitbox)
     function isPointInButton(x, y, button) {
-        return x >= button.x && x <= button.x + button.width &&
-               y >= button.y && y <= button.y + button.height;
+        const cx = button.x + button.size / 2;
+        const cy = button.y + button.size / 2;
+        const radius = button.size / 2;
+        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+        return dist <= radius;
     }
 
     // Store active touches to handle multitouch
     const activeTouches = new Map();
+
+    // Track boost state
+    let boostUsed = false; // Reset when boost becomes available again
 
     // Touch event handlers
     canvas.addEventListener('touchstart', (e) => {
@@ -1101,6 +1174,9 @@ function setupTouchControls() {
                 if (isPointInButton(canvasX, canvasY, button) && (isMobileDevice() || showControlsOnPC)) {
                     keys.add(button.key);
                     activeTouches.set(touch.identifier, button.key);
+                    if (button.id === 'jump' && lastGloveScore > 0) {
+                        boostUsed = true; // Mark boost as used when jump is pressed with boost available
+                    }
                 }
             }
         }
@@ -1126,6 +1202,9 @@ function setupTouchControls() {
         for (const button of buttons) {
             if (isPointInButton(canvasX, canvasY, button)) {
                 keys.add(button.key);
+                if (button.id === 'jump' && lastGloveScore > 0) {
+                    boostUsed = true; // Mark boost as used
+                }
             }
         }
     });
@@ -1142,53 +1221,59 @@ function setupTouchControls() {
         }
     });
 
-    // Draw buttons with wireframe arrows
+    // Reset boostUsed when gloves are collected
+    function checkBoostReset() {
+        if (lastGloveScore === 0) {
+            boostUsed = false; // Reset when no gloves are active
+        }
+    }
+
+    // Draw buttons with PNG images, circular shape, and glow effects
     function drawButtons() {
         if (!isMobileDevice() && !showControlsOnPC) return;
         ctx.save();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#000';
+        checkBoostReset(); // Check if boost should be reset
         buttons.forEach(button => {
-            // Draw button background
-            ctx.fillStyle = keys.has(button.key) ? '#0a0' : '#0f0'; // Darker when pressed
-            ctx.fillRect(button.x, button.y, button.width, button.height);
+            const cx = button.x + button.size / 2;
+            const cy = button.y + button.size / 2;
+            const radius = keys.has(button.key) ? (button.size / 2) * 0.9 : button.size / 2; // Shrink 10% when pressed
+
+            // Draw glow effect
+            if (button.id === 'left' || button.id === 'right') {
+                // Pulsing white glow
+                const pulse = Math.sin(performance.now() / 500) * 2 + 2; // Pulse radius 5-10px
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius + pulse, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+                ctx.fill();
+            } else if (button.id === 'jump') {
+                // Steady white circle or RGB flash if boost available
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius + 5, 0, Math.PI * 2);
+                ctx.fillStyle = (lastGloveScore > 0 && !boostUsed)
+                    ? `hsl(${(performance.now() / 50) % 360}, 60%, 40%)` // RGB flash
+                    : 'rgba(255, 255, 255, 0.69)'; // Steady white
+                ctx.fill();
+            }
+
+            // Draw circular button background
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fillStyle = keys.has(button.key) ? '#000' : '#000'; // Darker when pressed
+            ctx.fill();
+
             // Draw button border
             ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(button.x, button.y, button.width, button.height);
-            // Draw wireframe arrow
-            ctx.beginPath();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 3;
-            const cx = button.x + button.width / 2;
-            const cy = button.y + button.height / 2;
-            const size = 20; // Arrow size
-            if (button.id === 'left') {
-                // Left arrow: horizontal line with triangle at left end
-                ctx.moveTo(cx + size / 2, cy);
-                ctx.lineTo(cx - size / 2, cy);
-                ctx.moveTo(cx - size / 2, cy);
-                ctx.lineTo(cx - size / 4, cy - size / 4);
-                ctx.moveTo(cx - size / 2, cy);
-                ctx.lineTo(cx - size / 4, cy + size / 4);
-            } else if (button.id === 'jump') {
-                // Up arrow: vertical line with triangle at top
-                ctx.moveTo(cx, cy + size / 2);
-                ctx.lineTo(cx, cy - size / 2);
-                ctx.moveTo(cx, cy - size / 2);
-                ctx.lineTo(cx - size / 4, cy - size / 4);
-                ctx.moveTo(cx, cy - size / 2);
-                ctx.lineTo(cx + size / 4, cy - size / 4);
-            } else if (button.id === 'right') {
-                // Right arrow: horizontal line with triangle at right end
-                ctx.moveTo(cx - size / 2, cy);
-                ctx.lineTo(cx + size / 2, cy);
-                ctx.moveTo(cx + size / 2, cy);
-                ctx.lineTo(cx + size / 4, cy - size / 4);
-                ctx.moveTo(cx + size / 2, cy);
-                ctx.lineTo(cx + size / 4, cy + size / 4);
-            }
+            ctx.lineWidth = 0.65;
             ctx.stroke();
+
+            // Draw button image
+            if (button.img.complete && button.img.naturalHeight !== 0) {
+                const imgSize = keys.has(button.key) ? 60 : 65; // Shrink image 10% when pressed
+                const imgX = cx - imgSize / 2;
+                const imgY = cy - imgSize / 2;
+                ctx.drawImage(button.img, imgX, imgY, imgSize, imgSize);
+            }
         });
         ctx.restore();
     }
@@ -1203,6 +1288,7 @@ const drawTouchButtons = setupTouchControls();
 
 // Ball selection popup
 function showBallSelectionPopup() {
+    audioManager.playSfx('ballSelect'); // Play ball select sound
     const popup = document.createElement('div');
     popup.style.position = 'absolute';
     popup.style.top = '50%';
@@ -1219,7 +1305,12 @@ function showBallSelectionPopup() {
         ballOption.style.display = 'inline-block';
         ballOption.style.margin = '10px';
         ballOption.style.cursor = 'pointer';
-        ballOption.innerHTML = `<img src="${ballImages[i].src}" width="50" height="50" onclick="selectBall(${i})">`;
+        const img = document.createElement('img');
+        img.src = ballImages[i].src;
+        img.width = 50;
+        img.height = 50;
+        img.onclick = () => selectBall(i); // Attach onclick programmatically
+        ballOption.appendChild(img);
         popup.appendChild(ballOption);
     }
     const closeButton = document.createElement('div');
@@ -1230,16 +1321,53 @@ function showBallSelectionPopup() {
     closeButton.style.padding = '10px';
     closeButton.style.background = '#080816ff';
     closeButton.style.borderRadius = '5px';
-    closeButton.onclick = () => document.body.removeChild(popup);
+    closeButton.onclick = () => {
+        document.body.removeChild(popup);
+        audioManager.playSfx('ballSelect'); // Play sound on popup close
+    };
     popup.appendChild(closeButton);
     document.body.appendChild(popup);
+    isMenuOpen = true; // Keep menu open
+    isPaused = true; // Ensure game is paused
+    canvas.onclick = null; // Clear canvas click handlers
 }
 
 function selectBall(index) {
     selectedBallIndex = index;
-    document.body.removeChild(document.querySelector('div[style*="z-index: 1000"]'));
-    if (player) player.playerImg = ballImages[selectedBallIndex];
+    audioManager.playBallSound(index); // Play ball-specific sound
+    if (player) {
+        player.playerImg = ballImages[selectedBallIndex]; // Update player image
+        // Force redraw to show updated ball immediately
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawMenu(); // Redraw menu to keep it visible
+        if (currentLevel !== 0) {
+            // Draw game state in background if in a level
+            if (backgroundImg.complete && backgroundImg.naturalHeight !== 0) {
+                ctx.save();
+                ctx.globalAlpha = currentOpacity;
+                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
+            platforms.forEach(p => p.draw());
+            movingPlatforms.forEach(p => p.draw());
+            gloves.forEach(g => g.draw());
+            player.draw();
+            drawScoreboard();
+            drawTouchButtons();
+        }
+    }
+    document.body.removeChild(document.querySelector('div[style*="z-index: 1000"]')); // Close popup
 }
+// Input handling with mute toggle
+window.addEventListener('keydown', (e) => {
+    keys.add(e.key);
+    if (e.key === 'm') {
+        audioManager.toggleMute();
+    }
+});
+
+
+
 
 // Input handling
 window.addEventListener('keydown', (e) => keys.add(e.key));
@@ -1308,7 +1436,7 @@ function spawnGlove() {
     const x = side === 'left' ? -20 : canvas.width + 20;
     const y = player.y + (Math.random() * 200 - 100);
     const vx = side === 'left' ? 200 : -200;
-    gloves.push(new Glove(x, y, vx));
+    gloves.push(new Glove(x, y, vx)); // Glove fly sound played in constructor
 }
 
 function resetLevel(level) {
@@ -1326,12 +1454,17 @@ function resetLevel(level) {
     currentLevel = level;
     levelComplete = false;
     levelPauseTime = 0;
+    isMenuOpen = false; // Close menu when starting a level
+    canvas.onclick = null;
     setupLevelEffect(level);
     checkNewPlatform();
+    audioManager.playLevelBgm(level); // Play level-specific BGM
+    audioManager.playSfx('levelSelect'); // Play level select sound
 }
 
 function update(deltaTime) {
-    if (currentLevel === 0) return;
+    if (currentLevel === 0 || isPaused) return; // Skip updates if in menu or paused
+   
 
     if (levelComplete) {
         levelPauseTime += deltaTime * 1000;
@@ -1346,6 +1479,7 @@ function update(deltaTime) {
             player.vy = platform.type === 'jump' ? -1000 : -550;
             player.y = platform.y - platform.height / 2 - player.height / 2;
             if (player.boostActive) player.applyBoost();
+            audioManager.playSfx(platform.type === 'jump' ? 'jumpSprite' : 'platformBounce');
             break;
         }
     }
@@ -1356,6 +1490,7 @@ function update(deltaTime) {
             player.vy = -550;
             player.y = moving.y - moving.height / 2 - player.height / 2;
             if (player.boostActive) player.applyBoost();
+            audioManager.playSfx('platformBounce');
             break;
         }
     }
@@ -1368,6 +1503,7 @@ function update(deltaTime) {
             score += 10;
             player.gloveCount++;
             gloves.splice(i, 1);
+            audioManager.playSfx('gloveCollect');
         } else if (glove.x < -20 || glove.x > canvas.width + 20) {
             gloves.splice(i, 1);
         }
@@ -1389,6 +1525,7 @@ function update(deltaTime) {
     const totalScore = getTotalScore();
     if (totalScore >= currentLevel * 1000) {
         levelComplete = true;
+        audioManager.playSfx('levelComplete');
     }
     if (totalScore > highScore) {
         highScore = totalScore;
@@ -1407,6 +1544,195 @@ const BUTTON_HEIGHT = 30;
 const BUTTON_SPACING = 10;
 const GRID_START_X = (canvas.width - (LEVELS_PER_ROW * (BUTTON_WIDTH + BUTTON_SPACING) - BUTTON_SPACING)) / 2;
 const GRID_START_Y = canvas.height / 2 - 150;
+
+
+function drawMenu() {
+    audioManager.playMenuBgm(); // Play menu BGM
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Gradient and pulsing glow for ALYUP
+    const centerX = canvas.width / 2; // 350
+    const y = canvas.height / 2 - 300; // 170
+    ctx.textAlign = 'left'; // Align left to position each part manually
+
+    // Define font sizes
+    const fontA = '120px Bitcount prop single'; // Large A
+    const fontLY = '80px Bitcount prop single'; // Medium LY
+    const fontUP = '100px Bitcount prop single'; // Larger UP
+
+    // Measure text widths for positioning
+    ctx.font = fontA;
+    const widthA = ctx.measureText('A').width;
+    ctx.font = fontLY;
+    const widthLY = ctx.measureText('LY').width;
+    ctx.font = fontUP;
+    const widthUP = ctx.measureText('UP').width;
+    const totalWidth = widthA + widthLY + widthUP;
+
+    // Starting x-coordinate to center the text
+    const startX = centerX - totalWidth / 2;
+
+    // Create gradient (HSL cycling, e.g., rainbow effect)
+    const gradient = ctx.createLinearGradient(startX, y, startX + totalWidth, y);
+    const time = performance.now() / 1000; // For color cycling
+    gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
+    gradient.addColorStop(0.5, `hsl(${(time * 60 + 120) % 360}, 100%, 50%)`);
+    gradient.addColorStop(1, `hsl(${(time * 60 + 240) % 360}, 100%, 50%)`);
+
+    // Pulsing glow
+    const pulse = Math.sin(time * 2) * 5 + 10; // Glow radius 5–15px
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+    ctx.shadowBlur = pulse;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Draw A
+    ctx.font = fontA;
+    ctx.fillStyle = gradient;
+    ctx.fillText('A', startX, y);
+
+    // Draw LY
+    ctx.font = fontLY;
+    ctx.fillText('LY', startX + widthA, y);
+
+    // Draw UP
+    ctx.font = fontUP;
+    ctx.fillText('UP', startX + widthA + widthLY, y);
+
+    // Reset shadow for other elements
+    ctx.shadowBlur = 0;
+
+    // Ball selection button
+    const ballButton = {
+        x: canvas.width / 2 - 95,
+        y: canvas.height / 2 - 270,
+        width: 170,
+        height: 40
+    };
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(ballButton.x, ballButton.y, ballButton.width, ballButton.height);
+
+
+    // Pulsing white outline
+    const outlinePulse = Math.sin(time * 2) * 2 + 3; // Line width 1–5px
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`; // Opacity 0.1–0.5
+    ctx.lineWidth = outlinePulse;
+    ctx.strokeRect(ballButton.x, ballButton.y, ballButton.width, ballButton.height);
+
+    ctx.font = '22px Arial';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('SELECT BALL', canvas.width / 2 - 82, ballButton.y + 28);
+
+    // Level selection grid
+    ctx.font = '16px Arial';
+    for (let level = 1; level <= 100; level++) {
+        const row = Math.floor((level - 1) / LEVELS_PER_ROW);
+        const col = (level - 1) % LEVELS_PER_ROW;
+        const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
+        const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
+        ctx.fillStyle = (level <= highestLevelCompleted + 1 || allLevelsUnlocked) ? '#080816ff' : '#555'; // Gray for locked
+        ctx.fillRect(x, y, BUTTON_WIDTH, BUTTON_HEIGHT);
+        ctx.fillStyle = '#fff';
+        ctx.font = '26px Arial';
+        ctx.fillText ('LEVEL SELECT', canvas.width / 2 - 98, canvas.height / 2 - 160);
+        ctx.font = '16px Arial';
+        ctx.fillText(`${level}`, x + BUTTON_WIDTH / 2 - 7, y + BUTTON_HEIGHT / 2 + 5);
+    }
+
+    // Hidden Unlock All Levels button (top-left corner, 50x50px)
+    const unlockButton = {
+        x: 10,
+        y: 10,
+        width: 50,
+        height: 50
+    };
+    // Only draw if developer mode activated (e.g., via key combo)
+    if (keys.has('UnlockDev')) {
+        ctx.fillStyle = '#f00';
+        ctx.fillRect(unlockButton.x, unlockButton.y, unlockButton.width, unlockButton.height);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Unlock All', unlockButton.x + unlockButton.width / 2, unlockButton.y + unlockButton.height / 2 + 5);
+    }
+
+// Add Close button
+    const closeButton = {
+        x: canvas.width / 2 - 50,
+        y: canvas.height / 2 + 300, // Position below LEVEL SELECT
+        width: 100,
+        height: 40
+    };
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`;
+    ctx.lineWidth = outlinePulse;
+    ctx.strokeRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = '22px Arial';
+    ctx.fillText('CLOSE', canvas.width / 2 - 38, closeButton.y + 28);
+
+     // Handle menu clicks
+    canvas.onclick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        // Ball selection
+        if (
+            mouseX >= ballButton.x &&
+            mouseX <= ballButton.x + ballButton.width &&
+            mouseY >= ballButton.y &&
+            mouseY <= ballButton.y + ballButton.height
+        ) {
+            showBallSelectionPopup();
+            audioManager.playSfx('ballSelect');
+        }
+
+        // Level selection
+        for (let level = 1; level <= 100; level++) {
+            if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue; // Skip locked levels
+            const row = Math.floor((level - 1) / LEVELS_PER_ROW);
+            const col = (level - 1) % LEVELS_PER_ROW;
+            const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
+            const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
+            if (mouseX >= x && mouseX <= x + BUTTON_WIDTH && mouseY >= y && mouseY <= y + BUTTON_HEIGHT) {
+                resetLevel(level);
+                isPaused = false; // Ensure game is unpaused when starting a level
+                audioManager.playSfx('levelSelect');
+                break;
+            }
+        }
+
+          // Close button
+        if (
+            mouseX >= closeButton.x &&
+            mouseX <= closeButton.x + closeButton.width &&
+            mouseY >= closeButton.y &&
+            mouseY <= closeButton.y + closeButton.height &&
+            currentLevel !== 0 // Only allow closing if a level is active
+        ) {
+            isMenuOpen = false;
+            isPaused = false;
+            audioManager.playLevelBgm(currentLevel); // Resume level BGM
+            audioManager.playSfx('levelSelect'); // Play sound on menu close
+            canvas.onclick = null; // Clear click handler
+        }
+
+        // Unlock All Levels (dev)
+        if (keys.has('UnlockDev') &&
+            mouseX >= unlockButton.x && mouseX <= unlockButton.x + unlockButton.width &&
+            mouseY >= unlockButton.y && mouseY <= unlockButton.y + unlockButton.height) {
+            allLevelsUnlocked = true;
+        }
+    };
+
+    // Developer key combo to show Unlock All button (e.g., Ctrl+Shift+U)
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'U') {
+            keys.add('UnlockDev');
+        }
+    });
+}
 
 function drawLevelSelect() {
     ctx.fillStyle = '#000';
@@ -1465,6 +1791,73 @@ function drawScoreboard() {
     ctx.fillStyle = '#FFD700';
     ctx.textAlign = 'left';
     ctx.fillText('ALYUP', 20, 40);
+    
+
+   // Draw menu button (circular, matches control buttons)
+    const menuButton = {
+        x: canvas.width - 470, // Top-right, 10px margin
+        y: 20,
+        size: 50,
+        img: menuIconImg
+    };
+    const cx = menuButton.x + menuButton.size / 2;
+    const cy = menuButton.y + menuButton.size / 2;
+    const radius = keys.has('Menu') ? (menuButton.size / 2) * 0.8 : menuButton.size / 2; // Shrink 10% when pressed
+
+    // Pulsing white glow
+    const pulse = Math.sin(performance.now() / 500) * 2 + 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + pulse, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fill();
+
+    // Circular button background
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = keys.has('Menu') ? '#080816ff' : '#0f0f2bcc';
+    ctx.fill();
+
+    // Button border
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Button image
+    if (menuButton.img.complete && menuButton.img.naturalHeight !== 0) {
+        const imgSize = keys.has('Menu') ? 40 : 45;
+        const imgX = cx - imgSize / 2;
+        const imgY = cy - imgSize / 2;
+        ctx.drawImage(menuButton.img, imgX, imgY, imgSize, imgSize);
+    }
+
+    // Handle menu button click
+    canvas.addEventListener('mousedown', (e) => {
+        if (isMenuOpen || currentLevel === 0) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const dist = Math.sqrt((mouseX - cx) ** 2 + (mouseY - cy) ** 2);
+        if (dist <= radius) {
+            keys.add('Menu');
+        }
+    }, { once: true });
+
+    canvas.addEventListener('mouseup', (e) => {
+        if (isMenuOpen || currentLevel === 0) return;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const dist = Math.sqrt((mouseX - cx) ** 2 + (mouseY - cy) ** 2);
+        if (dist <= radius) {
+            keys.delete('Menu');
+            isMenuOpen = true;
+            isPaused = true; // Pause game
+            audioManager.playMenuBgm(); // Play menu BGM
+            audioManager.playSfx('ballSelect'); // Play sound on menu open
+            canvas.onclick = null; // Clear other click handlers
+        }
+    }, { once: true });
+
     ctx.fillStyle = '#FFF';
     ctx.fillText(`Score: ${score + getScrollScore()}`, 20, 70);
     ctx.fillText(`High Score: ${highScore}`, 20, 100);
@@ -1531,8 +1924,8 @@ function drawGloveIndicators() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (currentLevel === 0) {
-        drawLevelSelect();
+    if (isMenuOpen || currentLevel === 0) {
+        drawMenu();
         return;
     }
 
@@ -1550,12 +1943,12 @@ function draw() {
     gloves.forEach(g => g.draw());
     player.draw();
 
-    drawScoreboard();
+    drawScoreboard(); // Includes menu button
     drawGloveIndicators();
-    drawTouchButtons(); // Add touch button rendering
+    drawTouchButtons();
 
     if (levelComplete) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillStyle = '#080816ff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.font = '40px Arial';
         ctx.fillStyle = '#fff';
@@ -1566,22 +1959,27 @@ function draw() {
         const buttonHeight = 50;
         const buttonX = canvas.width / 2 - buttonWidth / 2;
         const buttonY = canvas.height / 2 + 50;
-        ctx.fillStyle = '#0f0';
+        ctx.fillStyle = '#080816ff';
         ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = '#FFD700';
         ctx.fillText('Next Level', canvas.width / 2, buttonY + buttonHeight / 2 + 5);
         canvas.onclick = (e) => {
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             if (mouseX >= buttonX && mouseX <= buttonX + buttonWidth && mouseY >= buttonY && mouseY <= buttonY + buttonHeight) {
+                if (currentLevel > highestLevelCompleted) {
+                    highestLevelCompleted = currentLevel;
+                    localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
+                }
                 resetLevel(currentLevel + 1);
+                isPaused = false; // Ensure unpaused for new level
                 canvas.onclick = null;
+                audioManager.playSfx('levelSelect');
             }
         };
     }
 
-    // Render Three.js background
     if (currentEffectUpdate) {
         currentEffectUpdate((lastTime > 0 ? (performance.now() - lastTime) / 1000 : 0));
     }
@@ -1607,4 +2005,3 @@ function draw() {
 
     currentLevel = 0;
     requestAnimationFrame(gameLoop);
-

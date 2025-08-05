@@ -1,41 +1,10 @@
+import { AudioManager } from './audio.js';
+
 // Canvas setup
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// game.js (top, with image declarations)
-const gloveFlySound = new Audio('assets/glove_fly.wav');
-const jumpSpriteSound = new Audio('assets/jump_sprite.wav');
-const gloveCollectSound = new Audio('assets/glove_collect.wav');
-const boostSound = new Audio('assets/boost.wav');
-const platformBounceSound = new Audio('assets/platform_bounce.wav');
-const levelCompleteSound = new Audio('assets/level_complete.wav');
-const levelSelectSound = new Audio('assets/level_select.wav');
-const ballSelectSound = new Audio('assets/ball_select.wav');
-const ballSounds = {
-    ball1: new Audio('assets/ball1_sound.wav'),
-    ball2: new Audio('assets/ball2_sound.wav'),
-    ball3: new Audio('assets/ball3_sound.wav') // Add more for each ball
-};
-const backgroundMusicTracks = Array.from({ length: 10 }, (_, i) => {
-    const audio = new Audio(`assets/bgm_${i + 1}.mp3`);
-    audio.loop = true;
-    audio.volume = 0.5;
-    return audio;
-});
 
-// Error handling for all audio
-const allSounds = [
-    gloveFlySound, jumpSpriteSound, gloveCollectSound, boostSound,
-    platformBounceSound, levelCompleteSound, levelSelectSound, ballSelectSound,
-    ...Object.values(ballSounds), ...backgroundMusicTracks
-];
-allSounds.forEach(audio => {
-    audio.onerror = () => console.error(`Failed to load ${audio.src}`);
-    audio.oncanplaythrough = () => console.log(`Loaded ${audio.src}`);
-});
-
-// Current music track
-let currentMusicTrack = null;
 
 // Load assets (including background)
 const playerImg1 = new Image(); playerImg1.src = 'assets/ball1.png';
@@ -58,6 +27,9 @@ const leftArrowImg = new Image(); leftArrowImg.src = 'assets/leftArrow.png';
 const upArrowImg = new Image(); upArrowImg.src = 'assets/upArrow.png';
 const rightArrowImg = new Image(); rightArrowImg.src = 'assets/rightArrow.png';
 
+// Initialize AudioManager
+const audioManager = new AudioManager();
+
 // Three.js setup
 const backgroundDiv = document.getElementById('background');
 const renderer = new THREE.WebGLRenderer();
@@ -75,17 +47,6 @@ let opacityTime = 0; // Time accumulator for animation
 const OPACITY_DURATION = 500; // 2 seconds for transition and hold
 let currentOpacity = 0.1; // Starting opacity
 let animationState = 'rising'; // States: 'rising', 'highHold', 'falling', 'lowHold'
-
-function playBackgroundMusic(level) {
-    const trackIndex = Math.floor((level - 1) / 10); // Levels 1-10: bgm_1, 11-20: bgm_2, etc.
-    const newTrack = backgroundMusicTracks[trackIndex];
-    if (currentMusicTrack !== newTrack) {
-        if (currentMusicTrack) currentMusicTrack.pause();
-        currentMusicTrack = newTrack;
-        currentMusicTrack.currentTime = 0;
-        currentMusicTrack.play().catch(e => console.error('Background music error:', e));
-    }
-}
 
 function updateOpacityAnimation(deltaTime) {
     opacityTime += deltaTime * 1000; // Convert to milliseconds
@@ -1020,6 +981,7 @@ class Glove {
         this.particleSpawnInterval = 0.025; // Spawn a particle every 20ms (adjust for density)
         this.trailLength = 150; // Distance in pixels for particles to fade out (approx. a few inches)
         this.spreadAngle = Math.PI / 10; // Spread angle in radians (30 degrees, adjustable)
+        audioManager.playSfx('gloveFly'); // Play glove fly sound on spawn
     }
 
     update(deltaTime) {
@@ -1109,6 +1071,7 @@ class Player {
         if (keys.has('ArrowUp') && this.gloveCount >= 3 && !this.boostActive) {
             this.boostActive = true;
             this.gloveCount = 0; // Reset glove count
+            audioManager.playSfx('boost'); // Play boost sound
         }
         if (this.boostActive && this.vy < 0 && Math.abs(this.vy) < 100) {
             this.boostActive = false; // Deactivate after peak jump
@@ -1154,6 +1117,7 @@ const MAX_GLOVES = 5;
 const MAX_PLATFORMS = 100;
 let highestLevelCompleted = localStorage.getItem('highestLevelCompleted') ? parseInt(localStorage.getItem('highestLevelCompleted')) : 0; // Track completed levels
 let isMenuOpen = false; // Track menu state
+let isPaused = false; // Track pause state
 let allLevelsUnlocked = false; // Dev unlock toggle
 
 // Touch control setup (on-canvas buttons)
@@ -1324,7 +1288,7 @@ const drawTouchButtons = setupTouchControls();
 
 // Ball selection popup
 function showBallSelectionPopup() {
-    ballSelectSound.play().catch(e => console.error('Ball select sound error:', e));
+    audioManager.playSfx('ballSelect'); // Play ball select sound
     const popup = document.createElement('div');
     popup.style.position = 'absolute';
     popup.style.top = '50%';
@@ -1341,7 +1305,12 @@ function showBallSelectionPopup() {
         ballOption.style.display = 'inline-block';
         ballOption.style.margin = '10px';
         ballOption.style.cursor = 'pointer';
-        ballOption.innerHTML = `<img src="${ballImages[i].src}" width="50" height="50" onclick="selectBall(${i})">`;
+        const img = document.createElement('img');
+        img.src = ballImages[i].src;
+        img.width = 50;
+        img.height = 50;
+        img.onclick = () => selectBall(i); // Attach onclick programmatically
+        ballOption.appendChild(img);
         popup.appendChild(ballOption);
     }
     const closeButton = document.createElement('div');
@@ -1352,31 +1321,57 @@ function showBallSelectionPopup() {
     closeButton.style.padding = '10px';
     closeButton.style.background = '#080816ff';
     closeButton.style.borderRadius = '5px';
-    closeButton.onclick = () => document.body.removeChild(popup);
+    closeButton.onclick = () => {
+        document.body.removeChild(popup);
+        audioManager.playSfx('ballSelect'); // Play sound on popup close
+    };
     popup.appendChild(closeButton);
     document.body.appendChild(popup);
-    isMenuOpen = false; // Close menu after selection
-    canvas.onclick = null;
+    isMenuOpen = true; // Keep menu open
+    isPaused = true; // Ensure game is paused
+    canvas.onclick = null; // Clear canvas click handlers
 }
 
 function selectBall(index) {
-    // e.g., 'ball1', 'ball2', 'ball3'
-    const sound = ballSounds[ballType];
-    if (sound) {
-        sound.play().catch(e => console.error(`Ball ${ballType} sound error:`, e));
-    }
     selectedBallIndex = index;
-    document.body.removeChild(document.querySelector('div[style*="z-index: 1000"]'));
-    if (player) player.playerImg = ballImages[selectedBallIndex];
+    audioManager.playBallSound(index); // Play ball-specific sound
+    if (player) {
+        player.playerImg = ballImages[selectedBallIndex]; // Update player image
+        // Force redraw to show updated ball immediately
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawMenu(); // Redraw menu to keep it visible
+        if (currentLevel !== 0) {
+            // Draw game state in background if in a level
+            if (backgroundImg.complete && backgroundImg.naturalHeight !== 0) {
+                ctx.save();
+                ctx.globalAlpha = currentOpacity;
+                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
+            platforms.forEach(p => p.draw());
+            movingPlatforms.forEach(p => p.draw());
+            gloves.forEach(g => g.draw());
+            player.draw();
+            drawScoreboard();
+            drawTouchButtons();
+        }
+    }
+    document.body.removeChild(document.querySelector('div[style*="z-index: 1000"]')); // Close popup
 }
+// Input handling with mute toggle
+window.addEventListener('keydown', (e) => {
+    keys.add(e.key);
+    if (e.key === 'm') {
+        audioManager.toggleMute();
+    }
+});
+
+
+
 
 // Input handling
 window.addEventListener('keydown', (e) => keys.add(e.key));
 window.addEventListener('keyup', (e) => keys.delete(e.key));
-
-document.addEventListener('click', () => {
-    if (currentLevel > 0) playBackgroundMusic(currentLevel);
-}, { once: true });
 
 // Game functions
 function getScrollScore() {
@@ -1441,7 +1436,7 @@ function spawnGlove() {
     const x = side === 'left' ? -20 : canvas.width + 20;
     const y = player.y + (Math.random() * 200 - 100);
     const vx = side === 'left' ? 200 : -200;
-    gloves.push(new Glove(x, y, vx));
+    gloves.push(new Glove(x, y, vx)); // Glove fly sound played in constructor
 }
 
 function resetLevel(level) {
@@ -1463,36 +1458,13 @@ function resetLevel(level) {
     canvas.onclick = null;
     setupLevelEffect(level);
     checkNewPlatform();
-    playBackgroundMusic(level);
+    audioManager.playLevelBgm(level); // Play level-specific BGM
+    audioManager.playSfx('levelSelect'); // Play level select sound
 }
 
-let lastGloveFlySound = 0;
 function update(deltaTime) {
-
- const now = performance.now();
-    gloves.forEach(glove => {
-        glove.x += glove.velocityX * deltaTime;
-        if (glove.velocityX !== 0 && now - lastGloveFlySound > 500) { // 500ms cooldown
-            gloveFlySound.play().catch(e => console.error('Glove fly sound error:', e));
-            lastGloveFlySound = now;
-        }
-    });
-
-    if (playerCollidesWithJumpSprite()) {
-    jumpSpriteSound.play().catch(e => console.error('Jump sprite sound error:', e));
-    // Apply bounce (e.g., player.velocityY = -jumpStrength)
-}
-
-if (playerUsesBoost()) { // Adjust based on your boost logic
-    boostSound.play().catch(e => console.error('Boost sound error:', e));
-}
-
-if (playerCollidesWithPlatform()) {
-    platformBounceSound.play().catch(e => console.error('Platform bounce sound error:', e));
-    // Apply bounce logic
-}
-
-    if (currentLevel === 0) return;
+    if (currentLevel === 0 || isPaused) return; // Skip updates if in menu or paused
+   
 
     if (levelComplete) {
         levelPauseTime += deltaTime * 1000;
@@ -1507,6 +1479,7 @@ if (playerCollidesWithPlatform()) {
             player.vy = platform.type === 'jump' ? -1000 : -550;
             player.y = platform.y - platform.height / 2 - player.height / 2;
             if (player.boostActive) player.applyBoost();
+            audioManager.playSfx(platform.type === 'jump' ? 'jumpSprite' : 'platformBounce');
             break;
         }
     }
@@ -1517,6 +1490,7 @@ if (playerCollidesWithPlatform()) {
             player.vy = -550;
             player.y = moving.y - moving.height / 2 - player.height / 2;
             if (player.boostActive) player.applyBoost();
+            audioManager.playSfx('platformBounce');
             break;
         }
     }
@@ -1529,6 +1503,7 @@ if (playerCollidesWithPlatform()) {
             score += 10;
             player.gloveCount++;
             gloves.splice(i, 1);
+            audioManager.playSfx('gloveCollect');
         } else if (glove.x < -20 || glove.x > canvas.width + 20) {
             gloves.splice(i, 1);
         }
@@ -1550,6 +1525,7 @@ if (playerCollidesWithPlatform()) {
     const totalScore = getTotalScore();
     if (totalScore >= currentLevel * 1000) {
         levelComplete = true;
+        audioManager.playSfx('levelComplete');
     }
     if (totalScore > highScore) {
         highScore = totalScore;
@@ -1571,16 +1547,7 @@ const GRID_START_Y = canvas.height / 2 - 150;
 
 
 function drawMenu() {
-if (mouseX >= ballButton.x && mouseX <= ballButton.x + ballButton.width &&
-    mouseY >= ballButton.y && mouseY <= ballButton.y + ballButton.height) {
-    ballSelectSound.play().catch(e => console.error('Ball select sound error:', e));
-    showBallSelectionPopup();
-
-
-    if (currentMusicTrack) currentMusicTrack.pause();
-
-
-    
+    audioManager.playMenuBgm(); // Play menu BGM
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1664,15 +1631,6 @@ if (mouseX >= ballButton.x && mouseX <= ballButton.x + ballButton.width &&
         const col = (level - 1) % LEVELS_PER_ROW;
         const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
         const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
-
-        // Check if the level has been completed and if all levels are unlocked  
-        if (mouseX >= x && mouseX <= x + BUTTON_WIDTH && mouseY >= y && mouseY <= y + BUTTON_HEIGHT) {
-            levelSelectSound.play().catch(e => console.error('Level select sound error:', e));
-            resetLevel(level);
-            break;
-        }
-    }
-
         ctx.fillStyle = (level <= highestLevelCompleted + 1 || allLevelsUnlocked) ? '#080816ff' : '#555'; // Gray for locked
         ctx.fillRect(x, y, BUTTON_WIDTH, BUTTON_HEIGHT);
         ctx.fillStyle = '#fff';
@@ -1697,16 +1655,37 @@ if (mouseX >= ballButton.x && mouseX <= ballButton.x + ballButton.width &&
         ctx.fillText('Unlock All', unlockButton.x + unlockButton.width / 2, unlockButton.y + unlockButton.height / 2 + 5);
     }
 
-    // Handle menu clicks
+// Add Close button
+    const closeButton = {
+        x: canvas.width / 2 - 50,
+        y: canvas.height / 2 + 300, // Position below LEVEL SELECT
+        width: 100,
+        height: 40
+    };
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`;
+    ctx.lineWidth = outlinePulse;
+    ctx.strokeRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = '22px Arial';
+    ctx.fillText('CLOSE', canvas.width / 2 - 38, closeButton.y + 28);
+
+     // Handle menu clicks
     canvas.onclick = (e) => {
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
         // Ball selection
-        if (mouseX >= ballButton.x && mouseX <= ballButton.x + ballButton.width &&
-            mouseY >= ballButton.y && mouseY <= ballButton.y + ballButton.height) {
+        if (
+            mouseX >= ballButton.x &&
+            mouseX <= ballButton.x + ballButton.width &&
+            mouseY >= ballButton.y &&
+            mouseY <= ballButton.y + ballButton.height
+        ) {
             showBallSelectionPopup();
+            audioManager.playSfx('ballSelect');
         }
 
         // Level selection
@@ -1718,8 +1697,25 @@ if (mouseX >= ballButton.x && mouseX <= ballButton.x + ballButton.width &&
             const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
             if (mouseX >= x && mouseX <= x + BUTTON_WIDTH && mouseY >= y && mouseY <= y + BUTTON_HEIGHT) {
                 resetLevel(level);
+                isPaused = false; // Ensure game is unpaused when starting a level
+                audioManager.playSfx('levelSelect');
                 break;
             }
+        }
+
+          // Close button
+        if (
+            mouseX >= closeButton.x &&
+            mouseX <= closeButton.x + closeButton.width &&
+            mouseY >= closeButton.y &&
+            mouseY <= closeButton.y + closeButton.height &&
+            currentLevel !== 0 // Only allow closing if a level is active
+        ) {
+            isMenuOpen = false;
+            isPaused = false;
+            audioManager.playLevelBgm(currentLevel); // Resume level BGM
+            audioManager.playSfx('levelSelect'); // Play sound on menu close
+            canvas.onclick = null; // Clear click handler
         }
 
         // Unlock All Levels (dev)
@@ -1797,7 +1793,7 @@ function drawScoreboard() {
     ctx.fillText('ALYUP', 20, 40);
     
 
-    // Draw menu button (circular, matches control buttons)
+   // Draw menu button (circular, matches control buttons)
     const menuButton = {
         x: canvas.width - 470, // Top-right, 10px margin
         y: 20,
@@ -1834,7 +1830,7 @@ function drawScoreboard() {
         ctx.drawImage(menuButton.img, imgX, imgY, imgSize, imgSize);
     }
 
-     // Handle menu button click
+    // Handle menu button click
     canvas.addEventListener('mousedown', (e) => {
         if (isMenuOpen || currentLevel === 0) return;
         const rect = canvas.getBoundingClientRect();
@@ -1855,6 +1851,9 @@ function drawScoreboard() {
         if (dist <= radius) {
             keys.delete('Menu');
             isMenuOpen = true;
+            isPaused = true; // Pause game
+            audioManager.playMenuBgm(); // Play menu BGM
+            audioManager.playSfx('ballSelect'); // Play sound on menu open
             canvas.onclick = null; // Clear other click handlers
         }
     }, { once: true });
@@ -1925,7 +1924,7 @@ function drawGloveIndicators() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-     if (isMenuOpen || currentLevel === 0) {
+    if (isMenuOpen || currentLevel === 0) {
         drawMenu();
         return;
     }
@@ -1944,12 +1943,11 @@ function draw() {
     gloves.forEach(g => g.draw());
     player.draw();
 
-    drawScoreboard();
+    drawScoreboard(); // Includes menu button
     drawGloveIndicators();
-    drawTouchButtons(); // Add touch button rendering
+    drawTouchButtons();
 
     if (levelComplete) {
-        levelCompleteSound.play().catch(e => console.error('Level complete sound error:', e));
         ctx.fillStyle = '#080816ff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.font = '40px Arial';
@@ -1970,18 +1968,18 @@ function draw() {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             if (mouseX >= buttonX && mouseX <= buttonX + buttonWidth && mouseY >= buttonY && mouseY <= buttonY + buttonHeight) {
-                // Update highestLevelCompleted
                 if (currentLevel > highestLevelCompleted) {
                     highestLevelCompleted = currentLevel;
                     localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
-            }
+                }
                 resetLevel(currentLevel + 1);
+                isPaused = false; // Ensure unpaused for new level
                 canvas.onclick = null;
+                audioManager.playSfx('levelSelect');
             }
         };
     }
 
-    // Render Three.js background
     if (currentEffectUpdate) {
         currentEffectUpdate((lastTime > 0 ? (performance.now() - lastTime) / 1000 : 0));
     }
@@ -2007,4 +2005,3 @@ function draw() {
 
     currentLevel = 0;
     requestAnimationFrame(gameLoop);
-

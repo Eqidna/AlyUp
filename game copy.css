@@ -1,0 +1,67 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #000000;
+}
+
+#gameCanvas {
+    display: block;
+   -r: 2px solid #000000;
+}
+
+#game-container {
+    position: relative;
+    width: 700px; /* Matches canvas width */
+    height: 940px; /* Matches canvas height */
+    margin: 0 auto;
+}
+
+#background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+}
+
+/* Toggle container styling */
+#toggle-container {
+    position: absolute;
+    top: 930px; /* Below buttons (y: 920) + 10px offset */
+    left: 50%; /* Center horizontally */
+    transform: translateX(-50%); /* Adjust to center */
+    width: 270px; /* Match button group width (3 * 70 + 2 * 30) */
+    text-align: center; /* Center label and checkbox */
+    color: #ffffff; /* White text to match aesthetic */
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    z-index: 1000; /* Above background and canvas */
+    background: rgba(7, 13, 26, 0.7); /* Blue-transparent background to match theme */
+    padding: 2px 4px; /* Comfortable padding */
+    border-radius: 5px; /* Rounded corners */
+    box-shadow: 0 0 7px rgba(0, 81, 255, 0.5); /* Blue glow to match theme */
+}
+
+#toggle-container label {
+    margin-right: 5px;
+}
+
+#toggle-container input {
+    vertical-align: middle;
+}
+
+@media (max-width: 768px) {
+    #toggle-container {
+        display: none; /* Hide toggle on mobile */
+    }
+}
+
+@font-face {
+    font-family: 'Bitcount prop single';
+    src: url('assets/fonts/BitcountPropSingle.woff2') format('woff2');
+}
