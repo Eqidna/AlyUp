@@ -2,11 +2,11 @@
 export class AudioManager {
     constructor() {
         // Initialize background music
-        this.menuBgm = new Audio('assets/menu_bgm_1.mp3');
+        this.menuBgm = new Audio('assets/Music/menu_bgm_1.mp3');
         this.menuBgm.loop = true;
         this.bgms = [];
         for (let i = 1; i <= 10; i++) {
-            const bgm = new Audio(`assets/bgm_${i}.mp3`);
+            const bgm = new Audio(`assets/Music/bgm_${i}.mp3`);
             bgm.loop = true;
             this.bgms.push(bgm);
         }

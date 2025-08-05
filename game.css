@@ -65,3 +65,15 @@ body {
     font-family: 'Bitcount prop single';
     src: url('assets/fonts/BitcountPropSingle.woff2') format('woff2');
 }
+
+/* Touch controls styling */
+#touch-controls {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    z-index: 1000;
+    pointer-events: none; /* Prevents blocking canvas clicks */
+}
+

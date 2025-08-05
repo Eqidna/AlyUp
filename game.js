@@ -1127,6 +1127,14 @@ function setupTouchControls() {
         return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 768;
     }
 
+    // Touch control setup
+const touchControls = document.getElementById('touch-controls');
+const leftButton = document.getElementById('left-button');
+const rightButton = document.getElementById('right-button');
+const jumpButton = document.getElementById('jump-button');
+
+
+
     // Button definitions
     const buttonSize = 70; // Diameter of circular buttons
     const buttonSpacing = 30;
@@ -1147,6 +1155,52 @@ function setupTouchControls() {
             showControlsOnPC = showControlsToggle.checked;
         });
     }
+
+    // Apply initial visibility
+if (!isMobileDevice()) {
+    touchControls.classList.toggle('hidden-on-pc', !showControlsOnPC);
+} else {
+    touchControls.style.display = 'flex';
+}
+
+// Toggle visibility on PC
+showControlsToggle.addEventListener('change', () => {
+    showControlsOnPC = showControlsToggle.checked;
+    if (!isMobileDevice()) {
+        touchControls.classList.toggle('hidden-on-pc', !showControlsOnPC);
+    }
+});
+
+// Touch event handlers
+function handleTouchStart(key) {
+    return (e) => {
+        e.preventDefault();
+        keys.add(key);
+    };
+}
+
+function handleTouchEnd(key) {
+    return (e) => {
+        e.preventDefault();
+        keys.delete(key);
+    };
+}
+
+// Add touch event listeners
+leftButton.addEventListener('touchstart', handleTouchStart('ArrowLeft'));
+leftButton.addEventListener('touchend', handleTouchEnd('ArrowLeft'));
+rightButton.addEventListener('touchstart', handleTouchStart('ArrowRight'));
+rightButton.addEventListener('touchend', handleTouchEnd('ArrowRight'));
+jumpButton.addEventListener('touchstart', handleTouchStart('ArrowUp'));
+jumpButton.addEventListener('touchend', handleTouchEnd('ArrowUp'));
+
+// For PC testing with mouse
+leftButton.addEventListener('mousedown', handleTouchStart('ArrowLeft'));
+leftButton.addEventListener('mouseup', handleTouchEnd('ArrowLeft'));
+rightButton.addEventListener('mousedown', handleTouchStart('ArrowRight'));
+rightButton.addEventListener('mouseup', handleTouchEnd('ArrowRight'));
+jumpButton.addEventListener('mousedown', handleTouchStart('ArrowUp'));
+jumpButton.addEventListener('mouseup', handleTouchEnd('ArrowUp'));
 
     // Function to check if a point is within a button (circular hitbox)
     function isPointInButton(x, y, button) {
