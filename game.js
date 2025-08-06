@@ -1141,19 +1141,17 @@ function setupTouchControls() {
     }
 
     // Touch control setup
-const touchControls = document.getElementById('touch-controls');
-const leftButton = document.getElementById('left-button');
-const rightButton = document.getElementById('right-button');
-const jumpButton = document.getElementById('jump-button');
+    const touchControls = document.getElementById('touch-controls');
+    const leftButton = document.getElementById('left-button');
+    const rightButton = document.getElementById('right-button');
+    const jumpButton = document.getElementById('jump-button');
 
-
-
-    // Button definitions
-    const buttonSize = 70; // Diameter of circular buttons
-    const buttonSpacing = 30;
-    const bottomMargin = 20;
-    const totalWidth = 3 * buttonSize + 2 * buttonSpacing; // 270px
-    const startX = (canvas.width - totalWidth) / 2; // Center: (700 - 270) / 2 = 215
+    // Button definitions with responsive sizing
+    const buttonSize = canvas.width * 0.175; // 10% of canvas width (70px at 700px canvas)
+    const buttonSpacing = canvas.width * 0.2; // 5% of canvas width (35px at 700px canvas)
+    const bottomMargin = canvas.width * 0.05; // 3% of canvas width (21px at 700px canvas)
+    const totalWidth = 3 * buttonSize + 2 * buttonSpacing;
+    const startX = (canvas.width - totalWidth) / 2; // Center buttons
     const buttons = [
         { id: 'left', x: startX, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowLeft', img: leftArrowImg },
         { id: 'jump', x: startX + buttonSize + buttonSpacing, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowUp', img: upArrowImg },
@@ -1166,54 +1164,49 @@ const jumpButton = document.getElementById('jump-button');
     if (showControlsToggle) {
         showControlsToggle.addEventListener('change', () => {
             showControlsOnPC = showControlsToggle.checked;
+            if (!isMobileDevice()) {
+                touchControls.classList.toggle('hidden-on-pc', !showControlsOnPC);
+            }
         });
     }
 
     // Apply initial visibility
-if (!isMobileDevice()) {
-    touchControls.classList.toggle('hidden-on-pc', !showControlsOnPC);
-} else {
-    touchControls.style.display = 'flex';
-}
-
-// Toggle visibility on PC
-showControlsToggle.addEventListener('change', () => {
-    showControlsOnPC = showControlsToggle.checked;
     if (!isMobileDevice()) {
         touchControls.classList.toggle('hidden-on-pc', !showControlsOnPC);
+    } else {
+        touchControls.style.display = 'flex';
     }
-});
 
-// Touch event handlers
-function handleTouchStart(key) {
-    return (e) => {
-        e.preventDefault();
-        keys.add(key);
-    };
-}
+    // Touch event handlers
+    function handleTouchStart(key) {
+        return (e) => {
+            e.preventDefault();
+            keys.add(key);
+        };
+    }
 
-function handleTouchEnd(key) {
-    return (e) => {
-        e.preventDefault();
-        keys.delete(key);
-    };
-}
+    function handleTouchEnd(key) {
+        return (e) => {
+            e.preventDefault();
+            keys.delete(key);
+        };
+    }
 
-// Add touch event listeners
-leftButton.addEventListener('touchstart', handleTouchStart('ArrowLeft'));
-leftButton.addEventListener('touchend', handleTouchEnd('ArrowLeft'));
-rightButton.addEventListener('touchstart', handleTouchStart('ArrowRight'));
-rightButton.addEventListener('touchend', handleTouchEnd('ArrowRight'));
-jumpButton.addEventListener('touchstart', handleTouchStart('ArrowUp'));
-jumpButton.addEventListener('touchend', handleTouchEnd('ArrowUp'));
+    // Add touch event listeners
+    leftButton.addEventListener('touchstart', handleTouchStart('ArrowLeft'));
+    leftButton.addEventListener('touchend', handleTouchEnd('ArrowLeft'));
+    rightButton.addEventListener('touchstart', handleTouchStart('ArrowRight'));
+    rightButton.addEventListener('touchend', handleTouchEnd('ArrowRight'));
+    jumpButton.addEventListener('touchstart', handleTouchStart('ArrowUp'));
+    jumpButton.addEventListener('touchend', handleTouchEnd('ArrowUp'));
 
-// For PC testing with mouse
-leftButton.addEventListener('mousedown', handleTouchStart('ArrowLeft'));
-leftButton.addEventListener('mouseup', handleTouchEnd('ArrowLeft'));
-rightButton.addEventListener('mousedown', handleTouchStart('ArrowRight'));
-rightButton.addEventListener('mouseup', handleTouchEnd('ArrowRight'));
-jumpButton.addEventListener('mousedown', handleTouchStart('ArrowUp'));
-jumpButton.addEventListener('mouseup', handleTouchEnd('ArrowUp'));
+    // For PC testing with mouse
+    leftButton.addEventListener('mousedown', handleTouchStart('ArrowLeft'));
+    leftButton.addEventListener('mouseup', handleTouchEnd('ArrowLeft'));
+    rightButton.addEventListener('mousedown', handleTouchStart('ArrowRight'));
+    rightButton.addEventListener('mouseup', handleTouchEnd('ArrowRight'));
+    jumpButton.addEventListener('mousedown', handleTouchStart('ArrowUp'));
+    jumpButton.addEventListener('mouseup', handleTouchEnd('ArrowUp'));
 
     // Function to check if a point is within a button (circular hitbox)
     function isPointInButton(x, y, button) {
@@ -1336,7 +1329,7 @@ jumpButton.addEventListener('mouseup', handleTouchEnd('ArrowUp'));
 
             // Draw button image
             if (button.img.complete && button.img.naturalHeight !== 0) {
-                const imgSize = keys.has(button.key) ? 60 : 65; // Shrink image 10% when pressed
+                const imgSize = keys.has(button.key) ? button.size * 0.8 : button.size * 0.85; // Adjusted to scale with button size
                 const imgX = cx - imgSize / 2;
                 const imgY = cy - imgSize / 2;
                 ctx.drawImage(button.img, imgX, imgY, imgSize, imgSize);
@@ -1345,7 +1338,6 @@ jumpButton.addEventListener('mouseup', handleTouchEnd('ArrowUp'));
         ctx.restore();
     }
 
-    // Return draw function to be called in the main draw loop
     return drawButtons;
 }
 // Initialize touch controls and get draw function
@@ -1891,22 +1883,37 @@ function drawMenu() {
 
 
 function drawScoreboard() {
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(10, 10, 280, 100);
-    ctx.strokeStyle = '#fffffeff';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(10, 10, 280, 100);
+    ctx.save();
 
-    ctx.font = '20px Arial';
+    // Responsive rectangle dimensions and position
+    const rectX = canvas.width * 0.0143; // 10px / 700px ≈ 0.0143
+    const rectY = canvas.height * 0.0106; // 10px / 940px ≈ 0.0106
+    const rectWidth = canvas.width * 0.4; // 280px / 700px = 0.4
+    const rectHeight = canvas.height * 0.1064; // 100px / 940px ≈ 0.1064
+
+    // Draw rectangle
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+    ctx.strokeStyle = '#fffffeff';
+    ctx.lineWidth = canvas.width * 0.0057; // 4px / 700px ≈ 0.0057
+    ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+
+    // Responsive text
+    const fontSize = canvas.width * 0.0286; // 20px / 700px ≈ 0.0286
+    ctx.font = `${fontSize}px Arial`;
     ctx.fillStyle = '#FFD700';
     ctx.textAlign = 'left';
-    ctx.fillText('ALYUP', 20, 40);
+    ctx.fillText('ALYUP', rectX + canvas.width * 0.0143, rectY + canvas.height * 0.0426); // (20, 40) → (0.0143 * width, 0.0426 * height)
+    ctx.fillStyle = '#FFF';
+    ctx.fillText(`Score: ${score + getScrollScore()}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.0745); // (20, 70) → (0.0143 * width, 0.0745 * height)
+    ctx.fillText(`High Score: ${highScore}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.1264); // (20, 100) → (0.0143 * width, 0.1064 * height)
+    ctx.fillText(`Level: ${currentLevel}`, rectX + canvas.width * 0.2143, rectY + canvas.height * 0.0745); // (150, 70) → (0.2143 * width, 0.0745 * height)
 
-    // Draw menu button (circular, matches control buttons)
+    // Responsive menu button
     const menuButton = {
-        x: canvas.width - 470,
-        y: 20,
-        size: 50,
+        x: canvas.width * 0.6714, // 230px / 700px = 700 - 470 → 0.6714 * width
+        y: canvas.height * 0.0213, // 20px / 940px ≈ 0.0213
+        size: canvas.width * 0.0714, // 50px / 700px ≈ 0.0714
         img: menuIconImg
     };
     const cx = menuButton.x + menuButton.size / 2;
@@ -1914,7 +1921,7 @@ function drawScoreboard() {
     const radius = keys.has('Menu') ? (menuButton.size / 2) * 0.8 : menuButton.size / 2;
 
     // Pulsing white glow
-    const pulse = Math.sin(performance.now() / 500) * 2 + 2;
+    const pulse = Math.sin(performance.now() / 500) * (canvas.width * 0.00286) + (canvas.width * 0.00286); // 2px / 700px ≈ 0.00286
     ctx.beginPath();
     ctx.arc(cx, cy, radius + pulse, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
@@ -1928,23 +1935,19 @@ function drawScoreboard() {
 
     // Button border
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 0.5;
+    ctx.lineWidth = canvas.width * 0.000714; // 0.5px / 700px ≈ 0.000714
     ctx.stroke();
 
     // Button image
     if (menuButton.img.complete && menuButton.img.naturalHeight !== 0) {
-        const imgSize = keys.has('Menu') ? 40 : 45;
+        const imgSize = keys.has('Menu') ? menuButton.size * 0.8 : menuButton.size * 0.9; // 40px / 50px = 0.8, 45px / 50px = 0.9
         const imgX = cx - imgSize / 2;
         const imgY = cy - imgSize / 2;
         ctx.drawImage(menuButton.img, imgX, imgY, imgSize, imgSize);
     }
 
-    ctx.fillStyle = '#FFF';
-    ctx.fillText(`Score: ${score + getScrollScore()}`, 20, 70);
-    ctx.fillText(`High Score: ${highScore}`, 20, 100);
-    ctx.fillText(`Level: ${currentLevel}`, 150, 70);
+    ctx.restore();
 }
-
 function drawGloveIndicators() {
     const circleSize = 45;
     const spacing = 5;
