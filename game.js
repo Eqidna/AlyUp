@@ -1143,8 +1143,8 @@ function setupTouchControls() {
     // Touch control setup
     const touchControls = document.getElementById('touch-controls');
     const leftButton = document.getElementById('left-button');
-    const rightButton = document.getElementById('right-button');
     const jumpButton = document.getElementById('jump-button');
+    const rightButton = document.getElementById('right-button');
 
     // Button definitions with responsive sizing
     const buttonSize = canvas.width * 0.175; // 10% of canvas width (70px at 700px canvas)
