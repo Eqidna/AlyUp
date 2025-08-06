@@ -40,6 +40,19 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
 camera.position.z = 5;
 
+// Resize handler
+function handleResize() {
+    const container = document.getElementById('game-container');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    canvas.width = width;
+    canvas.height = height;
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', handleResize);
+
 let currentEffectUpdate = null;
 
 // Animation state for background opacity
@@ -1338,11 +1351,37 @@ jumpButton.addEventListener('mouseup', handleTouchEnd('ArrowUp'));
 // Initialize touch controls and get draw function
 const drawTouchButtons = setupTouchControls();
 
+// Clear any existing click handlers
+canvas.onclick = null;
+canvas.removeEventListener('click', handleInputEvent);
+canvas.removeEventListener('touchstart', handleInputEvent);
 
+// Add unified click and touch listeners
+canvas.addEventListener('click', (e) => handleInputEvent(e, false));
+canvas.addEventListener('touchstart', (e) => {
+    // Only process if no touch controls are active to avoid conflicts
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = e.changedTouches[0].clientX - rect.left;
+    const canvasY = e.changedTouches[0].clientY - rect.top;
+    const buttons = [
+        { x: (canvas.width - 270) / 2, y: canvas.height - 90, size: 70 },
+        { x: (canvas.width - 270) / 2 + 100, y: canvas.height - 90, size: 70 },
+        { x: (canvas.width - 270) / 2 + 200, y: canvas.height - 90, size: 70 }
+    ];
+    const isInTouchButton = buttons.some(button => {
+        const cx = button.x + button.size / 2;
+        const cy = button.y + button.size / 2;
+        const radius = button.size / 2;
+        return Math.sqrt((canvasX - cx) ** 2 + (canvasY - cy) ** 2) <= radius;
+    });
+    if (!isInTouchButton) {
+        handleInputEvent(e, true);
+    }
+}, { passive: false });
 
 // Ball selection popup
 function showBallSelectionPopup() {
-    audioManager.playSfx('ballSelect'); // Play ball select sound
+    audioManager.playSfx('ballSelect');
     const popup = document.createElement('div');
     popup.style.position = 'absolute';
     popup.style.top = '50%';
@@ -1354,19 +1393,23 @@ function showBallSelectionPopup() {
     popup.style.borderRadius = '10px';
     popup.style.zIndex = '1000';
     popup.innerHTML = '<h2>Select Your Ball</h2>';
+    const ballContainer = document.createElement('div');
+    ballContainer.style.display = 'flex';
+    ballContainer.style.flexWrap = 'wrap';
+    ballContainer.style.justifyContent = 'center';
     for (let i = 0; i < ballImages.length; i++) {
         const ballOption = document.createElement('div');
-        ballOption.style.display = 'inline-block';
         ballOption.style.margin = '10px';
         ballOption.style.cursor = 'pointer';
         const img = document.createElement('img');
         img.src = ballImages[i].src;
         img.width = 50;
         img.height = 50;
-        img.onclick = () => selectBall(i); // Attach onclick programmatically
+        img.dataset.index = i;
         ballOption.appendChild(img);
-        popup.appendChild(ballOption);
+        ballContainer.appendChild(ballOption);
     }
+    popup.appendChild(ballContainer);
     const closeButton = document.createElement('div');
     closeButton.textContent = 'Close';
     closeButton.style.marginTop = '10px';
@@ -1375,42 +1418,71 @@ function showBallSelectionPopup() {
     closeButton.style.padding = '10px';
     closeButton.style.background = '#080816ff';
     closeButton.style.borderRadius = '5px';
-    closeButton.onclick = () => {
-        document.body.removeChild(popup);
-        audioManager.playSfx('ballSelect'); // Play sound on popup close
-    };
+    closeButton.dataset.action = 'close';
     popup.appendChild(closeButton);
     document.body.appendChild(popup);
-    isMenuOpen = true; // Keep menu open
-    isPaused = true; // Ensure game is paused
-    canvas.onclick = null; // Clear canvas click handlers
+    isMenuOpen = true;
+    isPaused = true;
+
+    // Handle click and touch for ball selection and close button
+    popup.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target.dataset.index) {
+            selectBall(parseInt(target.dataset.index));
+        } else if (target.dataset.action === 'close') {
+            document.body.removeChild(popup);
+            isMenuOpen = true; // Keep menu open after closing popup
+            isPaused = true;
+            audioManager.playSfx('ballSelect');
+        }
+    });
+
+    popup.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (target.dataset.index) {
+            selectBall(parseInt(target.dataset.index));
+        } else if (target.dataset.action === 'close') {
+            document.body.removeChild(popup);
+            isMenuOpen = true;
+            isPaused = true;
+            audioManager.playSfx('ballSelect');
+        }
+    }, { passive: false });
 }
 
 function selectBall(index) {
     selectedBallIndex = index;
-    audioManager.playBallSound(index); // Play ball-specific sound
+    audioManager.playBallSound(index);
     if (player) {
-        player.playerImg = ballImages[selectedBallIndex]; // Update player image
-        // Force redraw to show updated ball immediately
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawMenu(); // Redraw menu to keep it visible
-        if (currentLevel !== 0) {
-            // Draw game state in background if in a level
-            if (backgroundImg.complete && backgroundImg.naturalHeight !== 0) {
-                ctx.save();
-                ctx.globalAlpha = currentOpacity;
-                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
-                ctx.restore();
-            }
-            platforms.forEach(p => p.draw());
-            movingPlatforms.forEach(p => p.draw());
-            gloves.forEach(g => g.draw());
-            player.draw();
-            drawScoreboard();
-            drawTouchButtons();
-        }
+        player.playerImg = ballImages[selectedBallIndex];
     }
-    document.body.removeChild(document.querySelector('div[style*="z-index: 1000"]')); // Close popup
+    const popup = document.querySelector('div[style*="z-index: 1000"]');
+    if (popup) {
+        document.body.removeChild(popup);
+    }
+    isMenuOpen = true; // Keep menu open
+    isPaused = true;
+    // Redraw menu or game state
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (currentLevel === 0 || isMenuOpen) {
+        drawMenu();
+    } else {
+        if (backgroundImg.complete && backgroundImg.naturalHeight !== 0) {
+            ctx.save();
+            ctx.globalAlpha = currentOpacity;
+            ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+        }
+        platforms.forEach(p => p.draw());
+        movingPlatforms.forEach(p => p.draw());
+        gloves.forEach(g => g.draw());
+        player.draw();
+        drawScoreboard();
+        drawGloveIndicators();
+        drawTouchButtons();
+    }
 }
 // Input handling with mute toggle
 window.addEventListener('keydown', (e) => {
@@ -1421,7 +1493,127 @@ window.addEventListener('keydown', (e) => {
 });
 
 
+// Unified input handler for click and touch events
+function handleInputEvent(e, isTouch = false) {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    let canvasX, canvasY;
 
+    if (isTouch) {
+        const touch = e.changedTouches[0];
+        canvasX = touch.clientX - rect.left;
+        canvasY = touch.clientY - rect.top;
+    } else {
+        canvasX = e.clientX - rect.left;
+        canvasY = e.clientY - rect.top;
+    }
+
+    // Menu button during gameplay
+    const menuButton = { x: canvas.width - 470, y: 20, size: 50 };
+    if (
+        !isMenuOpen &&
+        !isPaused &&
+        currentLevel !== 0 &&
+        Math.sqrt((canvasX - (menuButton.x + menuButton.size / 2)) ** 2 + (canvasY - (menuButton.y + menuButton.size / 2)) ** 2) <= menuButton.size / 2
+    ) {
+        isMenuOpen = true;
+        isPaused = true;
+        audioManager.playMenuBgm();
+        audioManager.playSfx('ballSelect');
+        return true;
+    }
+
+    // Menu interactions
+    if (isMenuOpen || currentLevel === 0) {
+        // Ball selection button
+        const ballButton = { x: canvas.width / 2 - 95, y: canvas.height / 2 - 270, width: 170, height: 40 };
+        if (
+            canvasX >= ballButton.x &&
+            canvasX <= ballButton.x + ballButton.width &&
+            canvasY >= ballButton.y &&
+            canvasY <= ballButton.y + ballButton.height
+        ) {
+            showBallSelectionPopup();
+            audioManager.playSfx('ballSelect');
+            return true;
+        }
+
+        // Level selection grid
+        for (let level = 1; level <= 100; level++) {
+            if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue;
+            const row = Math.floor((level - 1) / LEVELS_PER_ROW);
+            const col = (level - 1) % LEVELS_PER_ROW;
+            const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
+            const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
+            if (
+                canvasX >= x &&
+                canvasX <= x + BUTTON_WIDTH &&
+                canvasY >= y &&
+                canvasY <= y + BUTTON_HEIGHT
+            ) {
+                resetLevel(level);
+                isPaused = false;
+                audioManager.playSfx('levelSelect');
+                return true;
+            }
+        }
+
+        // Close button
+        const closeButton = { x: canvas.width / 2 - 50, y: canvas.height / 2 + 300, width: 100, height: 40 };
+        if (
+            canvasX >= closeButton.x &&
+            canvasX <= closeButton.x + closeButton.width &&
+            canvasY >= closeButton.y &&
+            canvasY <= closeButton.y + closeButton.height &&
+            currentLevel !== 0
+        ) {
+            isMenuOpen = false;
+            isPaused = false;
+            audioManager.playLevelBgm(currentLevel);
+            audioManager.playSfx('levelSelect');
+            return true;
+        }
+
+        // Unlock all levels (dev mode)
+        const unlockButton = { x: 10, y: 10, width: 50, height: 50 };
+        if (
+            keys.has('UnlockDev') &&
+            canvasX >= unlockButton.x &&
+            canvasX <= unlockButton.x + unlockButton.width &&
+            canvasY >= unlockButton.y &&
+            canvasY <= unlockButton.y + unlockButton.height
+        ) {
+            allLevelsUnlocked = true;
+            audioManager.playSfx('levelSelect');
+            return true;
+        }
+    }
+
+    // Level completion screen
+    if (levelComplete) {
+        const buttonWidth = 200;
+        const buttonHeight = 50;
+        const buttonX = canvas.width / 2 - buttonWidth / 2;
+        const buttonY = canvas.height / 2 + 50;
+        if (
+            canvasX >= buttonX &&
+            canvasX <= buttonX + buttonWidth &&
+            canvasY >= buttonY &&
+            canvasY <= buttonY + buttonHeight
+        ) {
+            if (currentLevel > highestLevelCompleted) {
+                highestLevelCompleted = currentLevel;
+                localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
+            }
+            resetLevel(currentLevel + 1);
+            isPaused = false;
+            audioManager.playSfx('levelSelect');
+            return true;
+        }
+    }
+
+    return false;
+}
 
 // Input handling
 window.addEventListener('keydown', (e) => keys.add(e.key));
@@ -1509,7 +1701,7 @@ function resetLevel(level) {
     levelComplete = false;
     levelPauseTime = 0;
     isMenuOpen = false; // Close menu when starting a level
-    canvas.onclick = null;
+    
     setupLevelEffect(level);
     checkNewPlatform();
     audioManager.playLevelBgm(level); // Play level-specific BGM
@@ -1601,21 +1793,17 @@ const GRID_START_Y = canvas.height / 2 - 150;
 
 
 function drawMenu() {
-    audioManager.playMenuBgm(); // Play menu BGM
+    audioManager.playMenuBgm();
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Gradient and pulsing glow for ALYUP
-    const centerX = canvas.width / 2; // 350
-    const y = canvas.height / 2 - 300; // 170
-    ctx.textAlign = 'left'; // Align left to position each part manually
-
-    // Define font sizes
-    const fontA = '120px Bitcount prop single'; // Large A
-    const fontLY = '80px Bitcount prop single'; // Medium LY
-    const fontUP = '100px Bitcount prop single'; // Larger UP
-
-    // Measure text widths for positioning
+    const centerX = canvas.width / 2;
+    const y = canvas.height / 2 - 300;
+    ctx.textAlign = 'left';
+    const fontA = '120px Bitcount prop single';
+    const fontLY = '80px Bitcount prop single';
+    const fontUP = '100px Bitcount prop single';
     ctx.font = fontA;
     const widthA = ctx.measureText('A').width;
     ctx.font = fontLY;
@@ -1623,38 +1811,22 @@ function drawMenu() {
     ctx.font = fontUP;
     const widthUP = ctx.measureText('UP').width;
     const totalWidth = widthA + widthLY + widthUP;
-
-    // Starting x-coordinate to center the text
     const startX = centerX - totalWidth / 2;
-
-    // Create gradient (HSL cycling, e.g., rainbow effect)
     const gradient = ctx.createLinearGradient(startX, y, startX + totalWidth, y);
-    const time = performance.now() / 1000; // For color cycling
+    const time = performance.now() / 1000;
     gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
     gradient.addColorStop(0.5, `hsl(${(time * 60 + 120) % 360}, 100%, 50%)`);
     gradient.addColorStop(1, `hsl(${(time * 60 + 240) % 360}, 100%, 50%)`);
-
-    // Pulsing glow
-    const pulse = Math.sin(time * 2) * 5 + 10; // Glow radius 5–15px
+    const pulse = Math.sin(time * 2) * 5 + 10;
     ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
     ctx.shadowBlur = pulse;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-
-    // Draw A
     ctx.font = fontA;
     ctx.fillStyle = gradient;
     ctx.fillText('A', startX, y);
-
-    // Draw LY
     ctx.font = fontLY;
     ctx.fillText('LY', startX + widthA, y);
-
-    // Draw UP
     ctx.font = fontUP;
     ctx.fillText('UP', startX + widthA + widthLY, y);
-
-    // Reset shadow for other elements
     ctx.shadowBlur = 0;
 
     // Ball selection button
@@ -1666,53 +1838,35 @@ function drawMenu() {
     };
     ctx.fillStyle = '#080816ff';
     ctx.fillRect(ballButton.x, ballButton.y, ballButton.width, ballButton.height);
-
-
-    // Pulsing white outline
-    const outlinePulse = Math.sin(time * 2) * 2 + 3; // Line width 1–5px
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`; // Opacity 0.1–0.5
+    const outlinePulse = Math.sin(time * 2) * 2 + 3;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`;
     ctx.lineWidth = outlinePulse;
     ctx.strokeRect(ballButton.x, ballButton.y, ballButton.width, ballButton.height);
-
     ctx.font = '22px Arial';
     ctx.fillStyle = '#fff';
     ctx.fillText('SELECT BALL', canvas.width / 2 - 82, ballButton.y + 28);
 
     // Level selection grid
+    ctx.font = '26px Arial';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText('LEVEL SELECT', canvas.width / 2 - 98, canvas.height / 2 - 160);
     ctx.font = '16px Arial';
     for (let level = 1; level <= 100; level++) {
         const row = Math.floor((level - 1) / LEVELS_PER_ROW);
         const col = (level - 1) % LEVELS_PER_ROW;
         const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
         const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
-        ctx.fillStyle = (level <= highestLevelCompleted + 1 || allLevelsUnlocked) ? '#080816ff' : '#555'; // Gray for locked
+        ctx.fillStyle = (level <= highestLevelCompleted + 1 || allLevelsUnlocked) ? '#080816ff' : '#555';
         ctx.fillRect(x, y, BUTTON_WIDTH, BUTTON_HEIGHT);
         ctx.fillStyle = '#fff';
-        ctx.font = '26px Arial';
-        ctx.fillText ('LEVEL SELECT', canvas.width / 2 - 98, canvas.height / 2 - 160);
-        ctx.font = '16px Arial';
         ctx.fillText(`${level}`, x + BUTTON_WIDTH / 2 - 7, y + BUTTON_HEIGHT / 2 + 5);
     }
 
-    // Hidden Unlock All Levels button (top-left corner, 50x50px)
-    const unlockButton = {
-        x: 10,
-        y: 10,
-        width: 50,
-        height: 50
-    };
-    // Only draw if developer mode activated (e.g., via key combo)
-    if (keys.has('UnlockDev')) {
-        ctx.fillStyle = '#f00';
-        ctx.fillRect(unlockButton.x, unlockButton.y, unlockButton.width, unlockButton.height);
-        ctx.fillStyle = '#fff';
-        ctx.fillText('Unlock All', unlockButton.x + unlockButton.width / 2, unlockButton.y + unlockButton.height / 2 + 5);
-    }
-
-// Add Close button
+    // Close button
     const closeButton = {
         x: canvas.width / 2 - 50,
-        y: canvas.height / 2 + 300, // Position below LEVEL SELECT
+        y: canvas.height / 2 + 300,
         width: 100,
         height: 40
     };
@@ -1723,116 +1877,18 @@ function drawMenu() {
     ctx.strokeRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
     ctx.fillStyle = '#fff';
     ctx.font = '22px Arial';
-    ctx.fillText('CLOSE', canvas.width / 2 - 38, closeButton.y + 28);
+    ctx.fillText('CLOSE', canvas.width / 2 - 1, closeButton.y + 28);
 
-     // Handle menu clicks
-    canvas.onclick = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        // Ball selection
-        if (
-            mouseX >= ballButton.x &&
-            mouseX <= ballButton.x + ballButton.width &&
-            mouseY >= ballButton.y &&
-            mouseY <= ballButton.y + ballButton.height
-        ) {
-            showBallSelectionPopup();
-            audioManager.playSfx('ballSelect');
-        }
-
-        // Level selection
-        for (let level = 1; level <= 100; level++) {
-            if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue; // Skip locked levels
-            const row = Math.floor((level - 1) / LEVELS_PER_ROW);
-            const col = (level - 1) % LEVELS_PER_ROW;
-            const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
-            const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
-            if (mouseX >= x && mouseX <= x + BUTTON_WIDTH && mouseY >= y && mouseY <= y + BUTTON_HEIGHT) {
-                resetLevel(level);
-                isPaused = false; // Ensure game is unpaused when starting a level
-                audioManager.playSfx('levelSelect');
-                break;
-            }
-        }
-
-          // Close button
-        if (
-            mouseX >= closeButton.x &&
-            mouseX <= closeButton.x + closeButton.width &&
-            mouseY >= closeButton.y &&
-            mouseY <= closeButton.y + closeButton.height &&
-            currentLevel !== 0 // Only allow closing if a level is active
-        ) {
-            isMenuOpen = false;
-            isPaused = false;
-            audioManager.playLevelBgm(currentLevel); // Resume level BGM
-            audioManager.playSfx('levelSelect'); // Play sound on menu close
-            canvas.onclick = null; // Clear click handler
-        }
-
-        // Unlock All Levels (dev)
-        if (keys.has('UnlockDev') &&
-            mouseX >= unlockButton.x && mouseX <= unlockButton.x + unlockButton.width &&
-            mouseY >= unlockButton.y && mouseY <= unlockButton.y + unlockButton.height) {
-            allLevelsUnlocked = true;
-        }
-    };
-
-    // Developer key combo to show Unlock All button (e.g., Ctrl+Shift+U)
-    window.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.shiftKey && e.key === 'U') {
-            keys.add('UnlockDev');
-        }
-    });
-}
-
-function drawLevelSelect() {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '40px Arial';
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.fillText('AlyUp - Level Select', canvas.width / 2, canvas.height / 2 - 200);
-
-    ctx.font = '16px Arial';
-    for (let level = 1; level <= 100; level++) {
-        const row = Math.floor((level - 1) / LEVELS_PER_ROW);
-        const col = (level - 1) % LEVELS_PER_ROW;
-        const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
-        const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
-        ctx.fillStyle = '#080816ff';
-        ctx.fillRect(x, y, BUTTON_WIDTH, BUTTON_HEIGHT);
+    // Unlock All Levels button
+    const unlockButton = { x: 10, y: 10, width: 50, height: 50 };
+    if (keys.has('UnlockDev')) {
+        ctx.fillStyle = '#f00';
+        ctx.fillRect(unlockButton.x, unlockButton.y, unlockButton.width, unlockButton.height);
         ctx.fillStyle = '#fff';
-        ctx.fillText(`${level}`, x + BUTTON_WIDTH / 2, y + BUTTON_HEIGHT / 2 + 5);
+        ctx.fillText('Unlock All', unlockButton.x + unlockButton.width / 2, unlockButton.y + unlockButton.height / 2 + 5);
     }
-
-    // Add ball selection button
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(50, 150, 100, 30);
-    ctx.fillStyle = '#fff';
-    ctx.fillText('Select Ball', 100, 170);
-    canvas.onclick = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        for (let level = 1; level <= 100; level++) {
-            const row = Math.floor((level - 1) / LEVELS_PER_ROW);
-            const col = (level - 1) % LEVELS_PER_ROW;
-            const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
-            const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
-            if (mouseX >= x && mouseX <= x + BUTTON_WIDTH && mouseY >= y && mouseY <= y + BUTTON_HEIGHT) {
-                resetLevel(level);
-                canvas.onclick = null;
-                break;
-            }
-        }
-        if (mouseX >= 50 && mouseX <= 150 && mouseY >= 150 && mouseY <= 180) {
-            showBallSelectionPopup();
-        }
-    };
 }
+
 
 function drawScoreboard() {
     ctx.fillStyle = '#080816ff';
@@ -1845,18 +1901,17 @@ function drawScoreboard() {
     ctx.fillStyle = '#FFD700';
     ctx.textAlign = 'left';
     ctx.fillText('ALYUP', 20, 40);
-    
 
-   // Draw menu button (circular, matches control buttons)
+    // Draw menu button (circular, matches control buttons)
     const menuButton = {
-        x: canvas.width - 470, // Top-right, 10px margin
+        x: canvas.width - 470,
         y: 20,
         size: 50,
         img: menuIconImg
     };
     const cx = menuButton.x + menuButton.size / 2;
     const cy = menuButton.y + menuButton.size / 2;
-    const radius = keys.has('Menu') ? (menuButton.size / 2) * 0.8 : menuButton.size / 2; // Shrink 10% when pressed
+    const radius = keys.has('Menu') ? (menuButton.size / 2) * 0.8 : menuButton.size / 2;
 
     // Pulsing white glow
     const pulse = Math.sin(performance.now() / 500) * 2 + 2;
@@ -1883,34 +1938,6 @@ function drawScoreboard() {
         const imgY = cy - imgSize / 2;
         ctx.drawImage(menuButton.img, imgX, imgY, imgSize, imgSize);
     }
-
-    // Handle menu button click
-    canvas.addEventListener('mousedown', (e) => {
-        if (isMenuOpen || currentLevel === 0) return;
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        const dist = Math.sqrt((mouseX - cx) ** 2 + (mouseY - cy) ** 2);
-        if (dist <= radius) {
-            keys.add('Menu');
-        }
-    }, { once: true });
-
-    canvas.addEventListener('mouseup', (e) => {
-        if (isMenuOpen || currentLevel === 0) return;
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        const dist = Math.sqrt((mouseX - cx) ** 2 + (mouseY - cy) ** 2);
-        if (dist <= radius) {
-            keys.delete('Menu');
-            isMenuOpen = true;
-            isPaused = true; // Pause game
-            audioManager.playMenuBgm(); // Play menu BGM
-            audioManager.playSfx('ballSelect'); // Play sound on menu open
-            canvas.onclick = null; // Clear other click handlers
-        }
-    }, { once: true });
 
     ctx.fillStyle = '#FFF';
     ctx.fillText(`Score: ${score + getScrollScore()}`, 20, 70);
@@ -2002,37 +2029,22 @@ function draw() {
     drawTouchButtons();
 
     if (levelComplete) {
-        ctx.fillStyle = '#080816ff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.font = '40px Arial';
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 50);
-        ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2);
-        const buttonWidth = 200;
-        const buttonHeight = 50;
-        const buttonX = canvas.width / 2 - buttonWidth / 2;
-        const buttonY = canvas.height / 2 + 50;
-        ctx.fillStyle = '#080816ff';
-        ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText('Next Level', canvas.width / 2, buttonY + buttonHeight / 2 + 5);
-        canvas.onclick = (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            if (mouseX >= buttonX && mouseX <= buttonX + buttonWidth && mouseY >= buttonY && mouseY <= buttonY + buttonHeight) {
-                if (currentLevel > highestLevelCompleted) {
-                    highestLevelCompleted = currentLevel;
-                    localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
-                }
-                resetLevel(currentLevel + 1);
-                isPaused = false; // Ensure unpaused for new level
-                canvas.onclick = null;
-                audioManager.playSfx('levelSelect');
-            }
-        };
-    }
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '40px Arial';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 50);
+    ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2);
+    const buttonWidth = 200;
+    const buttonHeight = 50;
+    const buttonX = canvas.width / 2 - buttonWidth / 2;
+    const buttonY = canvas.height / 2 + 50;
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+    ctx.fillStyle = '#FFD700';
+    ctx.fillText('Next Level', canvas.width / 2, buttonY + buttonHeight / 2 + 5);
+}
 
     if (currentEffectUpdate) {
         currentEffectUpdate((lastTime > 0 ? (performance.now() - lastTime) / 1000 : 0));
@@ -2056,6 +2068,6 @@ function draw() {
         draw();
         requestAnimationFrame(gameLoop);
     }
-
+    handleResize();
     currentLevel = 0;
     requestAnimationFrame(gameLoop);

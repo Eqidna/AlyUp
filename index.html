@@ -2,26 +2,24 @@
 <html>
 <head>
     <title>AlyUp</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="game.css">
 </head>
 <body>
-    <div id="game-container">
-        <div id="background"></div>
-        <canvas id="gameCanvas" width="700" height="940"></canvas>
-    </div>
-   
-    <!-- Touch controls container -->
-<div id="touch-controls">
-    <div id="left-button" class="control-button">←</div>
-    <div id="right-button" class="control-button">→</div>
-    <div id="jump-button" class="control-button">↑</div>
-</div>
-
-   
-    <!-- Toggle for PC visibility -->
-    <div id="toggle-container">
-        <label for="show-controls">Show Controls on PC: </label>
-        <input type="checkbox" id="show-controls" checked>
+    <div class="flex-container">
+        <div class="container" id="game-container">
+            <div id="background"></div>
+            <canvas id="gameCanvas" width="700" height="940"></canvas>
+            <div id="touch-controls">
+                <div id="left-button" class="control-button"></div>
+                <div id="right-button" class="control-button"></div>
+                <div id="jump-button" class="control-button"></div>
+            </div>
+            <div id="toggle-container">
+                <label for="show-controls">Show Controls on PC: </label>
+                <input type="checkbox" id="show-controls" checked>
+            </div>
+        </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script type="module" src="game.js"></script>
