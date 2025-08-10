@@ -1,4 +1,3 @@
-// audio.js
 export class AudioManager {
     constructor() {
         // Initialize background music
@@ -27,35 +26,65 @@ export class AudioManager {
             platformBounce: new Audio('assets/platform_bounce.wav'),
             levelComplete: new Audio('assets/level_complete.wav'),
             levelSelect: new Audio('assets/level_select.wav'),
-            ballSelect: new Audio('assets/ball_select.wav')
+            ballSelect: new Audio('assets/ball_select.wav'),
+            airDash: new Audio('assets/airDash.mp3'),
+            airDashReady: new Audio('assets/airDashReady.mp3')
         };
 
-        // Mute state
-        this.isMuted = false;
+        // Volume and mute states from localStorage
+        this.musicVolume = parseFloat(localStorage.getItem('musicVolume') || '0.35');
+        this.sfxVolume = parseFloat(localStorage.getItem('sfxVolume') || '1.0');
+        this.isMusicMuted = localStorage.getItem('isMusicMuted') === 'true' || false;
+        this.isSfxMuted = localStorage.getItem('isSfxMuted') === 'true' || false;
 
         // Store the current BGM for level
         this.currentBgm = null;
+
+        // Apply initial volumes
+        this.updateMusicVolume();
+        this.updateSfxVolume();
     }
 
-    // Play menu background music
+    updateMusicVolume() {
+        this.menuBgm.volume = this.isMusicMuted ? 0 : this.musicVolume;
+        this.bgms.forEach(bgm => bgm.volume = this.isMusicMuted ? 0 : this.musicVolume);
+        localStorage.setItem('musicVolume', this.musicVolume);
+        localStorage.setItem('isMusicMuted', this.isMusicMuted);
+    }
+
+    updateSfxVolume() {
+        Object.values(this.ballSounds).forEach(sound => sound.volume = this.isSfxMuted ? 0 : this.sfxVolume);
+        Object.values(this.sfx).forEach(sound => sound.volume = this.isSfxMuted ? 0 : this.sfxVolume);
+        localStorage.setItem('sfxVolume', this.sfxVolume);
+        localStorage.setItem('isSfxMuted', this.isSfxMuted);
+    }
+
+    setMusicVolume(volume) {
+        this.musicVolume = volume;
+        this.updateMusicVolume();
+    }
+
+    setSfxVolume(volume) {
+        this.sfxVolume = volume;
+        this.updateSfxVolume();
+    }
+
     playMenuBgm() {
-        if (this.isMuted) return;
+        if (this.isMusicMuted) return;
         this.stopAllBgm();
         this.menuBgm.play().catch(e => console.error('Menu BGM error:', e));
         this.currentBgm = this.menuBgm;
     }
 
-    // Play level background music based on level number
     playLevelBgm(level) {
-        if (this.isMuted) return;
+        if (this.isMusicMuted) return;
         this.stopAllBgm();
-        const bgmIndex = (level - 1) % 10; // Cycle through 10 BGM tracks
+        const bgmIndex = (level - 1) % 10;
         const bgm = this.bgms[bgmIndex];
         bgm.play().catch(e => console.error(`Level ${level} BGM error:`, e));
         this.currentBgm = bgm;
     }
 
-    // Stop all background music
     stopAllBgm() {
         this.menuBgm.pause();
         this.menuBgm.currentTime = 0;
@@ -65,30 +94,41 @@ export class AudioManager {
         });
     }
 
-    // Play ball selection sound
     playBallSound(ballIndex) {
-        if (this.isMuted) return;
+        if (this.isSfxMuted) return;
         const ballKey = `ball${ballIndex + 1}`;
         const sound = this.ballSounds[ballKey];
-        sound.currentTime = 0; // Reset to start
+        sound.currentTime = 0;
         sound.play().catch(e => console.error(`Ball ${ballIndex + 1} sound error:`, e));
     }
 
-    // Play sound effect by key
     playSfx(sfxKey) {
-        if (this.isMuted) return;
+        if (this.isSfxMuted) return;
         const sound = this.sfx[sfxKey];
-        sound.currentTime = 0; // Reset to start
+        sound.currentTime = 0;
         sound.play().catch(e => console.error(`${sfxKey} sound error:`, e));
     }
 
-    // Toggle mute state
-    toggleMute() {
-        this.isMuted = !this.isMuted;
-        if (this.isMuted) {
+     playSfx(airDash) {
+        if (!this.isSfxMuted) {
+            this.sfx[airDash].currentTime = 0;
+            this.sfx[airDash].volume = this.sfxVolume;
+            this.sfx[airDash].play();
+        }
+    }
+
+    toggleMusicMute() {
+        this.isMusicMuted = !this.isMusicMuted;
+        this.updateMusicVolume();
+        if (this.isMusicMuted) {
             this.stopAllBgm();
         } else if (this.currentBgm) {
             this.currentBgm.play().catch(e => console.error('Resume BGM error:', e));
         }
+    }
+
+    toggleSfxMute() {
+        this.isSfxMuted = !this.isSfxMuted;
+        this.updateSfxVolume();
     }
 }

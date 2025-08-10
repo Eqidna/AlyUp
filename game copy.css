@@ -1,25 +1,44 @@
-body {
+/* Reset default margins and ensure box-sizing */
+* {
     margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Full-screen body with centered content */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
     background-color: #000000;
 }
 
-#gameCanvas {
-    display: block;
-   -r: 2px solid #000000;
-}
-
 #game-container {
+    width: 100%;
+    max-width: 700px;
+    height: 100%;
+    max-height: 940px;
     position: relative;
-    width: 700px; /* Matches canvas width */
-    height: 940px; /* Matches canvas height */
-    margin: 0 auto;
+    overflow: hidden;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
+#gameCanvas {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
 #background {
     position: absolute;
     top: 0;
@@ -29,39 +48,134 @@ body {
     z-index: -1;
 }
 
-/* Toggle container styling */
-#toggle-container {
+.hidden-on-pc {
+    display: none !important;
+}
+#touch-controls {
     position: absolute;
-    top: 930px; /* Below buttons (y: 920) + 10px offset */
-    left: 50%; /* Center horizontally */
-    transform: translateX(-50%); /* Adjust to center */
-    width: 270px; /* Match button group width (3 * 70 + 2 * 30) */
-    text-align: center; /* Center label and checkbox */
-    color: #ffffff; /* White text to match aesthetic */
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    z-index: 1000; /* Above background and canvas */
-    background: rgba(7, 13, 26, 0.7); /* Blue-transparent background to match theme */
-    padding: 2px 4px; /* Comfortable padding */
-    border-radius: 5px; /* Rounded corners */
-    box-shadow: 0 0 7px rgba(0, 81, 255, 0.5); /* Blue glow to match theme */
+    display: flex;
+    justify-content: space-between;
+    pointer-events: auto;
+}
+#left-button, #jump-button, #right-button {
+    border-radius: 50%;
+    background: transparent;
+    pointer-events: auto;
 }
 
+/* Control buttons with dynamic sizing */
+.control-button {
+    width: 10vmin; /* Scales with viewport */
+    height: 10vmin;
+    border-radius: 50%;
+    background: transparent; /* No background, as rendering is handled in game.js */
+    pointer-events: auto;
+}
+
+/* Toggle container for PC controls */
+#toggle-container {
+    position: fixed;
+    bottom: 1vmin;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30vmin; /* Scales with viewport */
+    max-width: 270px;
+    text-align: center;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    font-size: 2vmin; /* Scales text size */
+    z-index: 1000;
+    background: rgba(7, 13, 26, 0.7);
+    padding: 0.5vmin 1vmin;
+    border-radius: 0.5vmin;
+    box-shadow: 0 0 1vmin rgba(0, 81, 255, 0.5);
+}
+
+/* Toggle label and input */
 #toggle-container label {
-    margin-right: 5px;
+    margin-right: 0.5vmin;
 }
 
 #toggle-container input {
     vertical-align: middle;
+    width: 2vmin;
+    height: 2vmin;
 }
 
+/* Hide touch controls on PC by default */
+.hidden-on-pc {
+    display: none;
+}
+
+/* Font import */
+@font-face {
+    font-family: 'Bitcount prop single';
+    src: url('assets/fonts/BitcountPropSingle.woff2') format('woff2');
+}
+
+/* Media query for mobile devices (up to 768px) */
 @media (max-width: 768px) {
+    #game-container {
+        width: 100vw; /* Full viewport width */
+        height: 100dvh; /* Dynamic viewport height for mobile browser bars */
+        max-width: none; /* Remove max-width constraint */
+        max-height: none; /* Remove max-height constraint */
+        aspect-ratio: 700 / 940; /* Maintain aspect ratio */
+    }
+
+    #gameCanvas {
+        width: 100%;
+        height: 100%;
+    }
+
+    #touch-controls {
+        display: flex; /* Always show on mobile */
+        bottom: 3vmin; /* Slightly more spacing on mobile */
+    }
+
+    .control-button {
+        width: 12vmin; /* Larger buttons for touch */
+        height: 12vmin;
+    }
+
     #toggle-container {
         display: none; /* Hide toggle on mobile */
     }
 }
 
-@font-face {
-    font-family: 'Bitcount prop single';
-    src: url('assets/fonts/BitcountPropSingle.woff2') format('woff2');
+/* Media query for tablets (768px to 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+    #game-container {
+        width: 90vmin; /* Slightly smaller than full viewport for padding */
+        max-width: 700px;
+        aspect-ratio: 700 / 940;
+    }
+
+    .control-button {
+        width: 8vmin; /* Slightly smaller buttons for tablets */
+        height: 8vmin;
+    }
+
+    #toggle-container {
+        font-size: 1.8vmin; /* Adjust text size */
+        width: 25vmin;
+    }
+}
+
+/* Media query for small screens (below 480px) */
+@media (max-width: 480px) {
+    #game-container {
+        width: 100vw;
+        height: 100dvh;
+        aspect-ratio: 700 / 940;
+    }
+
+    .control-button {
+        width: 15vmin; /* Larger buttons for small screens */
+        height: 15vmin;
+    }
+
+    #touch-controls {
+        bottom: 4vmin; /* More spacing for very small screens */
+    }
 }

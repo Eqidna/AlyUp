@@ -21,24 +21,160 @@ const leftGloveImg = new Image(); leftGloveImg.src = 'assets/leftGlove.png';
 const rightGloveImg = new Image(); rightGloveImg.src = 'assets/rightGlove.png';
 const backgroundImg = new Image(); backgroundImg.src = 'assets/background.jpg';
 const menuIconImg = new Image(); menuIconImg.src = 'assets/menuIcon.png';
-
-// Load button icons
 const leftArrowImg = new Image(); leftArrowImg.src = 'assets/leftArrow.png';
 const upArrowImg = new Image(); upArrowImg.src = 'assets/upArrow.png';
 const rightArrowImg = new Image(); rightArrowImg.src = 'assets/rightArrow.png';
-
+const alyupImg = new Image(); alyupImg.src = 'assets/Alyup.png';
 // Initialize AudioManager
 const audioManager = new AudioManager();
+audioManager.setMusicVolume(parseFloat(localStorage.getItem('musicVolume') || '0.35'));
+audioManager.setSfxVolume(parseFloat(localStorage.getItem('sfxVolume') || '1.0'));
+
+// Game state (example: 'menu' or 'game')
+let gameState = 'menu'; // Adjust based on your game's state management
+let showControlsOnPC = localStorage.getItem('showControlsOnPC') === 'true' || true;
+// Reference to game container
+const gameContainer = document.getElementById('game-container');
+
+
+
+// Function to update visibility of menu-only elements
+function updateMenuElementsVisibility() {
+    console.log(`Updating visibility, gameState: ${gameState}`);
+    if (gameState === 'menu') {
+        gameContainer.classList.add('menu-active');
+        console.log('Menu active: Showing canvas-drawn controls');
+    } else {
+        gameContainer.classList.remove('menu-active');
+        console.log('Game active: Hiding canvas-drawn controls');
+    }
+}
+
+// Audio control state for canvas rendering
+const audioControls = {
+    musicVolume: {
+        x: canvas.width - 150,
+        y: 20,
+        width: 100,
+        height: 10,
+        value: audioManager.musicVolume,
+        dragging: false
+    },
+    musicMute: {
+        x: canvas.width - 150,
+        y: 40,
+        width: 50,
+        height: 20,
+        text: audioManager.isMusicMuted ? 'Unmute' : 'Mute'
+    },
+    sfxVolume: {
+        x: canvas.width - 150,
+        y: 70,
+        width: 100,
+        height: 10,
+        value: audioManager.sfxVolume,
+        dragging: false
+    },
+    sfxMute: {
+        x: canvas.width - 150,
+        y: 90,
+        width: 50,
+        height: 20,
+        text: audioManager.isSfxMuted ? 'Unmute' : 'Mute'
+    },
+    showControls: {
+        x: 10,
+        y: canvas.height - 30,
+        width: 20,
+        height: 20,
+        checked: showControlsOnPC
+    }
+};
+
+// Device volume rocker support
+if ('mediaSession' in navigator) {
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+        const newVolume = Math.max(0, audioManager.musicVolume - 0.1);
+        audioManager.setMusicVolume(newVolume);
+        audioControls.musicVolume.value = newVolume;
+        localStorage.setItem('musicVolume', newVolume);
+    });
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+        const newVolume = Math.min(1, audioManager.musicVolume + 0.1);
+        audioManager.setMusicVolume(newVolume);
+        audioControls.musicVolume.value = newVolume;
+        localStorage.setItem('musicVolume', newVolume);
+    });
+}
+
+
+// Function to switch game state
+function setGameState(newState) {
+    gameState = newState;
+    updateMenuElementsVisibility();
+    if (gameState === 'menu') {
+        audioManager.playMenuBgm();
+    } else {
+        audioManager.playLevelBgm(currentLevel || 1);
+    }
+}
 
 // Three.js setup
 const backgroundDiv = document.getElementById('background');
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(canvas.width, canvas.height);
+renderer.setPixelRatio(window.devicePixelRatio); // Improve rendering on high-DPI devices
 backgroundDiv.appendChild(renderer.domElement);
+
+// Ensure Three.js canvas is styled correctly
+renderer.domElement.style.width = '100%';
+renderer.domElement.style.height = '100%';
+renderer.domElement.style.display = 'block';
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
 camera.position.z = 5;
+
+// Configuration object for UI elements (responsive values)
+const uiConfig = {
+    circleSize: 0.0643, // 45px / 700px ≈ 0.0643 of canvas width
+    spacing: 0.0071, // 5px / 700px ≈ 0.0071 of canvas width
+    startXOffset: 0.0214, // 15px / 700px ≈ 0.0214 (right shift for glove indicators)
+    startY: 0.0532, // 50px / 940px ≈ 0.0532 of canvas height
+    boostTextFontSize: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
+    boostTextOffsetY: -0.0266, // -25px / 940px ≈ -0.0266 of canvas height
+    activateTextFontSize: 0.0214, // 15px / 700px ≈ 0.0214 of canvas width
+    activateTextOffsetX: -0.0314, // -22px / 700px ≈ -0.0314 of canvas width
+    activateTextOffsetY: 0.0426, // 40px / 940px ≈ 0.0426 of canvas height
+    glowBlur: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
+    pulseBase: 0.00286, // 2px / 700px ≈ 0.00286 of canvas width
+    pulseAmplitude: 0.00286, // 2px / 700px ≈ 0.00286 of canvas width
+    staminaXOffset: -0.1 // Position stamina bar to the left of glove indicators (adjusted)
+};
+
+// Configuration object for glove indicators (responsive values)
+const gloveIndicatorConfig = {
+    circleSize: 0.0643, // 45px / 700px ≈ 0.0643 of canvas width
+    spacing: 0.0071, // 5px / 700px ≈ 0.0071 of canvas width
+    startXOffset: 0.0214, // 15px / 700px ≈ 0.0214 (right shift)
+    startY: 0.0532, // 50px / 940px ≈ 0.0532 of canvas height
+    boostTextFontSize: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
+    boostTextOffsetY: -0.0266, // -25px / 940px ≈ -0.0266 of canvas height
+    activateTextFontSize: 0.0214, // 15px / 700px ≈ 0.0214 of canvas width
+    activateTextOffsetX: -0.0314, // -22px / 700px ≈ -0.0314 of canvas width
+    activateTextOffsetY: 0.0426, // 40px / 940px ≈ 0.0426 of canvas height
+    glowBlur: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
+    pulseBase: 0.00286, // 2px / 700px ≈ 0.00286 of canvas width
+    pulseAmplitude: 0.00286 // 2px / 700px ≈ 0.00286 of canvas width
+};
+
+// Define menuButton globally (place after uiConfig and asset loading)
+const menuButton = {
+    x: canvas.width * 0.005 + (canvas.width * 0.99 / 2) - (canvas.width * uiConfig.circleSize / 2), // Center in scoreboard
+    y: canvas.height * 0.0106 + (canvas.height * 0.1064 / 2) - (canvas.width * uiConfig.circleSize / 2), // Center vertically
+    size: canvas.width * uiConfig.circleSize, // Match glove indicator size
+    img: menuIconImg // Loaded as new Image(); menuIconImg.src = 'assets/menuIcon.png'
+};
 
 // Resize handler
 function handleResize() {
@@ -47,11 +183,39 @@ function handleResize() {
     const height = container.clientHeight;
     canvas.width = width;
     canvas.height = height;
-    renderer.setSize(width, height);
+
+
+   // Update Three.js renderer
+    renderer.setSize(width, height, false); // Avoid updating CSS
+    renderer.setPixelRatio(window.devicePixelRatio); // Update for high-DPI screens
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+
+  // Update menu button position (centered in scoreboard)
+    menuButton.x = canvas.width * 0.24 + (canvas.width * 0.99 / 2) - (canvas.width * uiConfig.circleSize / 2);
+    menuButton.y = canvas.height * 0.0006 + (canvas.height * 0.1064 / 2) - (canvas.width * uiConfig.circleSize / 2);
+    menuButton.size = canvas.width * uiConfig.circleSize;
+
+     // Update audio controls positions
+     audioControls.musicVolume.x = canvas.width - (canvas.width * 0.2143); // 150px / 700px
+    audioControls.musicMute.x = canvas.width - (canvas.width * 0.2143);
+    audioControls.sfxVolume.x = canvas.width - (canvas.width * 0.2143);
+    audioControls.sfxMute.x = canvas.width - (canvas.width * 0.2143);
+    audioControls.showControls.x = canvas.width * 0.0143; // 10px / 700px
+    audioControls.showControls.y = canvas.height - (canvas.height * 0.0319); // 30px / 940px
+   // Trigger button position recalculation
+    const drawButtons = setupTouchControls(); // Reinitialize to update buttons
+    drawButtons(); // Call immediately to redraw buttons
 }
-window.addEventListener('resize', handleResize);
+// Global or module-level variables to store buttons and draw function
+let buttons = [];
+let drawButtonsFn = () => {};
+
+let resizeTimeout;
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(handleResize, 100);
+});
 
 let currentEffectUpdate = null;
 
@@ -405,7 +569,7 @@ function createCometTrail(level) {
     const stars = new THREE.Points(starsGeometry, starsMaterial);
     group.add(stars);
 
-    const baseVortexCount = 5;
+    const baseVortexCount = 15;
     const vortexCount = level > 8 ? Math.floor(baseVortexCount * (1 + (level - 1) / 50)) : baseVortexCount;
     const vortices = [];
     const vortexHueOffsets = [];
@@ -1147,26 +1311,65 @@ function setupTouchControls() {
     const rightButton = document.getElementById('right-button');
 
     // Button definitions with responsive sizing
+    function calculateButtonPositions() {
     const buttonSize = canvas.width * 0.175; // 10% of canvas width (70px at 700px canvas)
     const buttonSpacing = canvas.width * 0.2; // 5% of canvas width (35px at 700px canvas)
     const bottomMargin = canvas.width * 0.05; // 3% of canvas width (21px at 700px canvas)
     const totalWidth = 3 * buttonSize + 2 * buttonSpacing;
     const startX = (canvas.width - totalWidth) / 2; // Center buttons
-    const buttons = [
+    return  [
         { id: 'left', x: startX, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowLeft', img: leftArrowImg },
         { id: 'jump', x: startX + buttonSize + buttonSpacing, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowUp', img: upArrowImg },
         { id: 'right', x: startX + 2 * (buttonSize + buttonSpacing), y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowRight', img: rightArrowImg }
     ];
+    }
 
-    // Toggle visibility state
-    let showControlsOnPC = true;
+       
+
+ // Update HTML button positions
+    function updateHtmlButtonPositions() {
+        const containerRect = document.getElementById('game-container').getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        const scaleX = canvasRect.width / canvas.width;
+        const scaleY = canvasRect.height / canvas.height;
+        const offsetX = canvasRect.left - containerRect.left;
+        const offsetY = canvasRect.top - containerRect.top;
+
+        buttons.forEach((button, index) => {
+            const htmlButton = [leftButton, jumpButton, rightButton][index];
+            const buttonWidth = button.size * scaleX;
+            const buttonHeight = button.size * scaleY;
+            const buttonX = button.x * scaleX + offsetX;
+            const buttonY = button.y * scaleY + offsetY;
+            htmlButton.style.width = `${buttonWidth}px`;
+            htmlButton.style.height = `${buttonHeight}px`;
+            htmlButton.style.position = 'absolute';
+            htmlButton.style.left = `${buttonX}px`;
+            htmlButton.style.top = `${buttonY}px`;
+            htmlButton.style.backgroundImage = `url(${button.img.src})`;
+            htmlButton.style.backgroundSize = '80%';
+            htmlButton.style.backgroundPosition = 'center';
+            htmlButton.style.backgroundRepeat = 'no-repeat';
+        });
+    }
+
+// Update button positions (exposed for resize)
+    function updateButtonPositions() {
+        buttons = calculateButtonPositions();
+        updateHtmlButtonPositions();
+    }
+
+     // Toggle visibility state
+    let showControlsOnPC = localStorage.getItem('showControlsOnPC') === 'true' || true;
     const showControlsToggle = document.getElementById('show-controls');
     if (showControlsToggle) {
         showControlsToggle.addEventListener('change', () => {
             showControlsOnPC = showControlsToggle.checked;
+            localStorage.setItem('showControlsOnPC', showControlsOnPC);
             if (!isMobileDevice()) {
                 touchControls.classList.toggle('hidden-on-pc', !showControlsOnPC);
             }
+            updateHtmlButtonPositions();
         });
     }
 
@@ -1224,23 +1427,22 @@ function setupTouchControls() {
     let boostUsed = false; // Reset when boost becomes available again
 
     // Touch event handlers
-    canvas.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        for (const touch of e.changedTouches) {
-            const canvasX = touch.clientX - rect.left;
-            const canvasY = touch.clientY - rect.top;
-            for (const button of buttons) {
-                if (isPointInButton(canvasX, canvasY, button) && (isMobileDevice() || showControlsOnPC)) {
-                    keys.add(button.key);
-                    activeTouches.set(touch.identifier, button.key);
-                    if (button.id === 'jump' && lastGloveScore > 0) {
-                        boostUsed = true; // Mark boost as used when jump is pressed with boost available
-                    }
-                }
-            }
-        }
-    }, { passive: false });
+canvas.addEventListener('touchstart', (e) => {
+    console.log('Canvas touchstart event triggered');
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = e.changedTouches[0].clientX - rect.left;
+    const canvasY = e.changedTouches[0].clientY - rect.top;
+    const isInTouchButton = buttons.some(button => {
+        const cx = button.x + button.size / 2;
+        const cy = button.y + button.size / 2;
+        const radius = button.size / 2;
+        return Math.sqrt((canvasX - cx) ** 2 + (canvasY - cy) ** 2) <= radius;
+    });
+    if (!isInTouchButton) {
+        console.log('Canvas touchstart, processing input');
+        handleInputEvent(e, true);
+    }
+}, { passive: false });
 
     canvas.addEventListener('touchend', (e) => {
         e.preventDefault();
@@ -1338,23 +1540,40 @@ function setupTouchControls() {
         ctx.restore();
     }
 
+   
+
+ 
+    // Initialize buttons
+    updateButtonPositions();
+
+    // Store draw function for rendering loop
+    drawButtonsFn = drawButtons;
+
+    // Add resize listener
+    window.addEventListener('resize', updateButtonPositions);
+
     return drawButtons;
 }
+
 // Initialize touch controls and get draw function
 const drawTouchButtons = setupTouchControls();
 
-// Clear any existing click handlers
+// Clear any existing listeners
 canvas.onclick = null;
 canvas.removeEventListener('click', handleInputEvent);
 canvas.removeEventListener('touchstart', handleInputEvent);
 
 // Add unified click and touch listeners
-canvas.addEventListener('click', (e) => handleInputEvent(e, false));
+canvas.addEventListener('click', (e) => {
+    console.log('Canvas click event triggered');
+    handleInputEvent(e, false);
+});
+
 canvas.addEventListener('touchstart', (e) => {
-    // Only process if no touch controls are active to avoid conflicts
+    console.log('Canvas touchstart event triggered');
     const rect = canvas.getBoundingClientRect();
-    const canvasX = e.changedTouches[0].clientX - rect.left;
-    const canvasY = e.changedTouches[0].clientY - rect.top;
+    const canvasX = (e.changedTouches[0].clientX - rect.left) * (canvas.width / rect.width);
+    const canvasY = (e.changedTouches[0].clientY - rect.top) * (canvas.height / rect.height);
     const buttons = [
         { x: (canvas.width - 270) / 2, y: canvas.height - 90, size: 70 },
         { x: (canvas.width - 270) / 2 + 100, y: canvas.height - 90, size: 70 },
@@ -1367,14 +1586,17 @@ canvas.addEventListener('touchstart', (e) => {
         return Math.sqrt((canvasX - cx) ** 2 + (canvasY - cy) ** 2) <= radius;
     });
     if (!isInTouchButton) {
+        console.log('Canvas touchstart, processing input');
         handleInputEvent(e, true);
     }
 }, { passive: false });
 
 // Ball selection popup
 function showBallSelectionPopup() {
+    console.log('showBallSelectionPopup called');
     audioManager.playSfx('ballSelect');
     const popup = document.createElement('div');
+    popup.id = 'ball-selection-popup';
     popup.style.position = 'absolute';
     popup.style.top = '50%';
     popup.style.left = '50%';
@@ -1403,6 +1625,7 @@ function showBallSelectionPopup() {
     }
     popup.appendChild(ballContainer);
     const closeButton = document.createElement('div');
+    closeButton.id = 'ball-selection-close';
     closeButton.textContent = 'Close';
     closeButton.style.marginTop = '10px';
     closeButton.style.cursor = 'pointer';
@@ -1420,10 +1643,12 @@ function showBallSelectionPopup() {
     popup.addEventListener('click', (e) => {
         const target = e.target;
         if (target.dataset.index) {
+            console.log(`Ball ${target.dataset.index} selected`);
             selectBall(parseInt(target.dataset.index));
         } else if (target.dataset.action === 'close') {
+            console.log('Popup close button clicked');
             document.body.removeChild(popup);
-            isMenuOpen = true; // Keep menu open after closing popup
+            isMenuOpen = true;
             isPaused = true;
             audioManager.playSfx('ballSelect');
         }
@@ -1434,8 +1659,10 @@ function showBallSelectionPopup() {
         const touch = e.changedTouches[0];
         const target = document.elementFromPoint(touch.clientX, touch.clientY);
         if (target.dataset.index) {
+            console.log(`Ball ${target.dataset.index} selected (touch)`);
             selectBall(parseInt(target.dataset.index));
         } else if (target.dataset.action === 'close') {
+            console.log('Popup close button clicked (touch)');
             document.body.removeChild(popup);
             isMenuOpen = true;
             isPaused = true;
@@ -1445,18 +1672,18 @@ function showBallSelectionPopup() {
 }
 
 function selectBall(index) {
+    console.log(`selectBall called with index ${index}`);
     selectedBallIndex = index;
     audioManager.playBallSound(index);
     if (player) {
         player.playerImg = ballImages[selectedBallIndex];
     }
-    const popup = document.querySelector('div[style*="z-index: 1000"]');
+    const popup = document.getElementById('ball-selection-popup');
     if (popup) {
         document.body.removeChild(popup);
     }
-    isMenuOpen = true; // Keep menu open
+    isMenuOpen = true;
     isPaused = true;
-    // Redraw menu or game state
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (currentLevel === 0 || isMenuOpen) {
         drawMenu();
@@ -1484,47 +1711,50 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
+let lastMenuClick = 0;
+const MENU_CLICK_DEBOUNCE = 200; // 200ms debounce
+
 
 // Unified input handler for click and touch events
 function handleInputEvent(e, isTouch = false) {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     let canvasX, canvasY;
-
     if (isTouch) {
         const touch = e.changedTouches[0];
-        canvasX = touch.clientX - rect.left;
-        canvasY = touch.clientY - rect.top;
+        canvasX = (touch.clientX - rect.left) * scaleX;
+        canvasY = (touch.clientY - rect.top) * scaleY;
     } else {
-        canvasX = e.clientX - rect.left;
-        canvasY = e.clientY - rect.top;
+        canvasX = (e.clientX - rect.left) * scaleX;
+        canvasY = (e.clientY - rect.top) * scaleY;
     }
+    console.log(`Input at (${canvasX.toFixed(2)}, ${canvasY.toFixed(2)}), gameState=${gameState}, isMenuOpen=${isMenuOpen}, currentLevel=${currentLevel}`);
 
     // Menu button during gameplay
-    const menuButton = { x: canvas.width - 470, y: 20, size: 50 };
     if (
         !isMenuOpen &&
         !isPaused &&
         currentLevel !== 0 &&
         Math.sqrt((canvasX - (menuButton.x + menuButton.size / 2)) ** 2 + (canvasY - (menuButton.y + menuButton.size / 2)) ** 2) <= menuButton.size / 2
     ) {
-        isMenuOpen = true;
-        isPaused = true;
-        audioManager.playMenuBgm();
-        audioManager.playSfx('ballSelect');
+        console.log('Menu button clicked');
+        toggleMenu(true);
         return true;
     }
 
     // Menu interactions
     if (isMenuOpen || currentLevel === 0) {
-        // Ball selection button
-        const ballButton = { x: canvas.width / 2 - 95, y: canvas.height / 2 - 270, width: 170, height: 40 };
+        const ballButton = { x: canvas.width / 2 - 85, y: canvas.height / 2 - 242, width: 170, height: 40 };
+        console.log(`Checking ball button: x[${ballButton.x}, ${ballButton.x + ballButton.width}], y[${ballButton.y}, ${ballButton.y + ballButton.height}]`);
         if (
             canvasX >= ballButton.x &&
             canvasX <= ballButton.x + ballButton.width &&
             canvasY >= ballButton.y &&
             canvasY <= ballButton.y + ballButton.height
         ) {
+            console.log('Ball selection button clicked, calling showBallSelectionPopup');
             showBallSelectionPopup();
             audioManager.playSfx('ballSelect');
             return true;
@@ -1559,10 +1789,75 @@ function handleInputEvent(e, isTouch = false) {
             canvasY <= closeButton.y + closeButton.height &&
             currentLevel !== 0
         ) {
-            isMenuOpen = false;
-            isPaused = false;
-            audioManager.playLevelBgm(currentLevel);
-            audioManager.playSfx('levelSelect');
+            console.log(`Close button clicked at (${canvasX.toFixed(2)}, ${canvasY.toFixed(2)})`);
+            toggleMenu(false);
+            return true;
+        }
+
+        // Audio controls
+        if (
+            canvasX >= audioControls.musicVolume.x &&
+            canvasX <= audioControls.musicVolume.x + audioControls.musicVolume.width &&
+            canvasY >= audioControls.musicVolume.y &&
+            canvasY <= audioControls.musicVolume.y + audioControls.musicVolume.height
+        ) {
+            audioControls.musicVolume.dragging = true;
+            const value = (canvasX - audioControls.musicVolume.x) / audioControls.musicVolume.width;
+            audioManager.setMusicVolume(Math.max(0, Math.min(1, value)));
+            audioControls.musicVolume.value = audioManager.musicVolume;
+            localStorage.setItem('musicVolume', audioManager.musicVolume);
+            return true;
+        }
+
+        if (
+            canvasX >= audioControls.musicMute.x &&
+            canvasX <= audioControls.musicMute.x + audioControls.musicMute.width &&
+            canvasY >= audioControls.musicMute.y &&
+            canvasY <= audioControls.musicMute.y + audioControls.musicMute.height
+        ) {
+            audioManager.toggleMusicMute();
+            audioControls.musicMute.text = audioManager.isMusicMuted ? 'Unmute' : 'Mute';
+            return true;
+        }
+
+        if (
+            canvasX >= audioControls.sfxVolume.x &&
+            canvasX <= audioControls.sfxVolume.x + audioControls.sfxVolume.width &&
+            canvasY >= audioControls.sfxVolume.y &&
+            canvasY <= audioControls.sfxVolume.y + audioControls.sfxVolume.height
+        ) {
+            audioControls.sfxVolume.dragging = true;
+            const value = (canvasX - audioControls.sfxVolume.x) / audioControls.sfxVolume.width;
+            audioManager.setSfxVolume(Math.max(0, Math.min(1, value)));
+            audioControls.sfxVolume.value = audioManager.sfxVolume;
+            localStorage.setItem('sfxVolume', audioManager.sfxVolume);
+            return true;
+        }
+
+        if (
+            canvasX >= audioControls.sfxMute.x &&
+            canvasX <= audioControls.sfxMute.x + audioControls.sfxMute.width &&
+            canvasY >= audioControls.sfxMute.y &&
+            canvasY <= audioControls.sfxMute.y + audioControls.sfxMute.height
+        ) {
+            audioManager.toggleSfxMute();
+            audioControls.sfxMute.text = audioManager.isSfxMuted ? 'Unmute' : 'Mute';
+            return true;
+        }
+
+        if (
+            canvasX >= audioControls.showControls.x &&
+            canvasX <= audioControls.showControls.x + audioControls.showControls.width &&
+            canvasY >= audioControls.showControls.y &&
+            canvasY <= audioControls.showControls.y + audioControls.showControls.height
+        ) {
+            showControlsOnPC = !showControlsOnPC;
+            audioControls.showControls.checked = showControlsOnPC;
+            localStorage.setItem('showControlsOnPC', showControlsOnPC);
+            const touchControls = document.getElementById('touch-controls');
+            if (!isMobileDevice()) {
+                touchControls.style.display = showControlsOnPC ? 'flex' : 'none';
+            }
             return true;
         }
 
@@ -1606,6 +1901,79 @@ function handleInputEvent(e, isTouch = false) {
 
     return false;
 }
+//Dedicated Menu Toggle Function
+
+function toggleMenu(open) {
+    isMenuOpen = open;
+    isPaused = open;
+    gameState = open ? 'menu' : 'game';
+    updateMenuElementsVisibility();
+    console.log(`Menu toggled: isMenuOpen=${isMenuOpen}, isPaused=${isPaused}, gameState=${gameState}`);
+    if (isMenuOpen) {
+        audioManager.playMenuBgm();
+    } else {
+        audioManager.playLevelBgm(currentLevel);
+    }
+    audioManager.playSfx('ballSelect');
+}
+
+// Handle slider dragging
+canvas.addEventListener('mousemove', (e) => {
+    if (audioControls.musicVolume.dragging || audioControls.sfxVolume.dragging) {
+        const rect = canvas.getBoundingClientRect();
+        const canvasX = e.clientX - rect.left;
+        if (audioControls.musicVolume.dragging) {
+            const value = (canvasX - audioControls.musicVolume.x) / audioControls.musicVolume.width;
+            audioManager.setMusicVolume(Math.max(0, Math.min(1, value)));
+            audioControls.musicVolume.value = audioManager.musicVolume;
+            localStorage.setItem('musicVolume', audioManager.musicVolume);
+        }
+        if (audioControls.sfxVolume.dragging) {
+            const value = (canvasX - audioControls.sfxVolume.x) / audioControls.sfxVolume.width;
+            audioManager.setSfxVolume(Math.max(0, Math.min(1, value)));
+            audioControls.sfxVolume.value = audioManager.sfxVolume;
+            localStorage.setItem('sfxVolume', audioManager.sfxVolume);
+        }
+    }
+});
+
+canvas.addEventListener('mouseup', () => {
+    audioControls.musicVolume.dragging = false;
+    audioControls.sfxVolume.dragging = false;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.changedTouches[0];
+    const canvasX = touch.clientX - rect.left;
+    if (audioControls.musicVolume.dragging) {
+        const value = (canvasX - audioControls.musicVolume.x) / audioControls.musicVolume.width;
+        audioManager.setMusicVolume(Math.max(0, Math.min(1, value)));
+        audioControls.musicVolume.value = audioManager.musicVolume;
+        localStorage.setItem('musicVolume', audioManager.musicVolume);
+    }
+    if (audioControls.sfxVolume.dragging) {
+        const value = (canvasX - audioControls.sfxVolume.x) / audioControls.sfxVolume.width;
+        audioManager.setSfxVolume(Math.max(0, Math.min(1, value)));
+        audioControls.sfxVolume.value = audioManager.sfxVolume;
+        localStorage.setItem('sfxVolume', audioManager.sfxVolume);
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => {
+    audioControls.musicVolume.dragging = false;
+    audioControls.sfxVolume.dragging = false;
+}, { passive: false });
+
+// Keybinding for music mute
+document.addEventListener('keydown', (e) => {
+    keys.add(e.key);
+    if (e.key.toLowerCase() === 'm' && gameState === 'menu') {
+        audioManager.toggleMusicMute();
+        audioControls.musicMute.text = audioManager.isMusicMuted ? 'Unmute' : 'Mute';
+    }
+});
 
 // Input handling
 window.addEventListener('keydown', (e) => keys.add(e.key));
@@ -1748,7 +2116,7 @@ function update(deltaTime) {
     }
 
     const scrollScore = getScrollScore();
-    if (scrollScore - lastGloveScore >= 100) {
+    if (scrollScore - lastGloveScore >= 200) {
         lastGloveScore = scrollScore;
         spawnGlove();
     }
@@ -1784,47 +2152,364 @@ const GRID_START_X = (canvas.width - (LEVELS_PER_ROW * (BUTTON_WIDTH + BUTTON_SP
 const GRID_START_Y = canvas.height / 2 - 150;
 
 
+// Function to create three subtle wavy circular gradient glows side by side around Alyup.png
+function createGradientBorder(ctx, img, x, y, width, height, time) {
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width + 420; // Increased for three circles
+    offscreenCanvas.height = height + 440; // Consistent with height
+    const offCtx = offscreenCanvas.getContext('2d');
+
+       // Colors (in RGB for interpolation)
+    const colors = [
+        { r: 173, g: 216, b: 230, hex: '#ADD8E6' }, // babyBlue
+        { r: 175, g: 255, b: 172, hex: '#afffacff' }, // babyGreen
+        { r: 255, g: 248, b: 156, hex: '#fff89cff' }, // babyYellow
+        { r: 255, g: 189, b: 156, hex: '#ffbd9cff' }, // babyOrange
+        { r: 255, g: 172, b: 233, hex: '#fface9ff' }, // babyPink
+        { r: 173, g: 216, b: 230, hex: '#ADD8E6' } // babyBlue (loop back)
+    ];
+
+    // Glow properties
+    const glowWidth = 15.9; // Base width of the glow
+    const glowOffset = 18; // Distance from image edge
+    const waveAmplitude = 10; // Amplitude of the wave effect
+    const waveFrequency = 34; // Number of waves around each circle
+    const animationSpeed = 0.5; // Speed of the animation
+    const blurRadius = 10; // Blur for softness
+    const radiusScale = 0.045; // Scale to match current glow size
+    const circleSpacing = (Math.max(width, height) / 2 + glowOffset) * radiusScale * 2; // Spacing between circles
+    const yOffset = height * 1.5; // Offset to lower glow circles (adjustable)
+    // Draw Alyup.png centered in the offscreen canvas
+    offCtx.drawImage(img, glowOffset + glowWidth + (offscreenCanvas.width - width) / 2 - glowWidth, glowOffset + glowWidth, width, height);
+
+
+
+    
+    // Calculate the base radius for each circle
+    const radius = (Math.max(width, height) / 1 + glowOffset) * radiusScale;
+
+    // Define centers for three circles (left, center, right)
+    const centerY = (height + 3 * (glowOffset + glowWidth)) / 3 + yOffset;
+    const centersX = [
+         (offscreenCanvas.width / 0.95) - circleSpacing, // Left circle
+       
+       
+        (offscreenCanvas.width / 95) + circleSpacing // Right circle
+    ];
+
+        // Determine gradient type and blending factor for smooth transition
+    const cycleTime = time % 60; // Cycle every 60 seconds
+    const transitionDuration = 4; // 4-second fade for smoother transition
+    let linearWeight = 1;
+    let radialWeight = 0;
+    if (cycleTime < 30) {
+        // Linear phase (0–30 seconds)
+        if (cycleTime > 26) {
+            // Fade to radial over 4 seconds (26–30)
+            const t = (cycleTime - 26) / transitionDuration;
+            linearWeight = Math.cos(t * Math.PI / 2); // Cosine easing for smoothness
+            radialWeight = 1 - linearWeight;
+        }
+    } else {
+        // Radial phase (30–60 seconds)
+        if (cycleTime > 56) {
+            // Fade to linear over 4 seconds (56–60)
+            const t = (cycleTime - 56) / transitionDuration;
+            radialWeight = Math.cos(t * Math.PI / 2); // Cosine easing
+            linearWeight = 1 - radialWeight;
+        } else {
+            linearWeight = 0;
+            radialWeight = 1;
+        }
+    }
+
+    // Helper function to normalize color stop positions to [0, 1]
+    const normalizeStop = (stop) => {
+        return ((stop % 1) + 1) % 1; // Ensures stop is between 0 and 1
+    };
+
+    
+
+    // Create wavy circular glow for each circle
+    offCtx.shadowBlur = blurRadius;
+    offCtx.shadowColor = 'rgba(255, 162, 232, 0.37)'; // Soft white for glow effect
+
+    centersX.forEach((centerX, index) => {
+        offCtx.beginPath();
+        const segments = 460; // Number of segments for smooth circle
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * 2 * Math.PI; // Angle in radians
+            // Calculate wave offset with phase shift for each circle
+            const phaseShift = (index * 2 * Math.PI) / 10; // Offset waves for visual variety
+            const wave = Math.sin(waveFrequency * angle + time * animationSpeed + phaseShift) * waveAmplitude;
+            const currentRadius = radius + wave;
+
+            // Calculate point on circular path
+            const glowX = centerX + currentRadius * Math.cos(angle);
+            const glowY = centerY + currentRadius * Math.sin(angle);
+
+            if (i === 0) {
+                offCtx.moveTo(glowX, glowY);
+            } else {
+                offCtx.lineTo(glowX, glowY);
+            }
+        }
+        offCtx.closePath();
+
+         // Create gradients with extended range
+        const linearGradient = offCtx.createLinearGradient(
+            centerX - radius * 1.2, centerY + radius * 1.2, // Bottom left (extended)
+            centerX + radius * 1.2, centerY - radius * 1.2 // Top right (extended)
+        );
+        const radialGradient = offCtx.createRadialGradient(
+            centerX, centerY, 0, // Inner circle (zero for full spread)
+            centerX, centerY, radius * 1.3 // Outer circle (aligned with linear extent)
+        );
+
+        // Generate color stops to ensure middle colors reach edges
+        const colorOffset = Math.sin(time * 3.2) * 3.2; // Subtler wave
+        const stopPositions = [1, 0.8, 0.6, 0.4, 0.2, 0]; // 6 stops for even distribution
+        const colorIndices = [
+            0, // babyBlue at start
+            1, // babyGreen
+            2, // babyYellow
+            3, // babyOrange
+            4, // babyPink
+            0  // babyBlue at end
+        ];
+
+        stopPositions.forEach((pos, i) => {
+            const stopPos = normalizeStop(pos + colorOffset);
+            const colorIndex = colorIndices[i];
+            const rgbColor = `rgb(${colors[colorIndex].r}, ${colors[colorIndex].g}, ${colors[colorIndex].b})`;
+            
+            if (linearWeight > 0) {
+                linearGradient.addColorStop(stopPos, rgbColor);
+            }
+            if (radialWeight > 0) {
+                radialGradient.addColorStop(stopPos, rgbColor);
+            }
+        });
+
+        // Blend gradients if in transition
+        offCtx.strokeStyle = linearWeight >= 1 ? linearGradient : radialWeight >= 1 ? radialGradient : (() => {
+            const blendedCanvas = document.createElement('canvas');
+            blendedCanvas.width = offscreenCanvas.width;
+            blendedCanvas.height = offscreenCanvas.height;
+            const blendedCtx = blendedCanvas.getContext('2d');
+            blendedCtx.globalAlpha = linearWeight;
+            blendedCtx.fillStyle = linearGradient;
+            blendedCtx.fillRect(0, 0, blendedCanvas.width, blendedCanvas.height);
+            blendedCtx.globalAlpha = radialWeight;
+            blendedCtx.fillStyle = radialGradient;
+            blendedCtx.fillRect(0, 0, blendedCanvas.width, blendedCanvas.height);
+            return blendedCtx.createPattern(blendedCanvas, 'no-repeat');
+        })();
+        
+        offCtx.lineWidth = glowWidth * 1.62; // Consistent with your code
+        offCtx.globalAlpha = 0.055; // Subtle transparency
+        offCtx.stroke();
+    });
+ 
+
+    // Reset context properties
+    offCtx.globalAlpha = 0.5;
+    offCtx.shadowBlur = 0.5;
+
+    // Draw to main canvas
+    ctx.drawImage(offscreenCanvas, x - (glowOffset + glowWidth + (offscreenCanvas.width - width) / 2 - glowWidth), y - (glowOffset + glowWidth));
+    return offscreenCanvas; // Return for image export
+}
+
+function createGradientBorder2(ctx, img, x, y, width, height, time) {
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = width + 220; // Increased for three circles
+    offscreenCanvas.height = height + 80; // Consistent with height
+    const offCtx = offscreenCanvas.getContext('2d');
+
+       // Colors (in RGB for interpolation)
+    const colors = [
+        { r: 173, g: 216, b: 230, hex: '#ADD8E6' }, // babyBlue
+        { r: 175, g: 255, b: 172, hex: '#afffacff' }, // babyGreen
+        { r: 255, g: 248, b: 156, hex: '#fff89cff' }, // babyYellow
+        { r: 255, g: 189, b: 156, hex: '#ffbd9cff' }, // babyOrange
+        { r: 255, g: 172, b: 233, hex: '#fface9ff' }, // babyPink
+        { r: 173, g: 216, b: 230, hex: '#ADD8E6' } // babyBlue (loop back)
+    ];
+
+    // Glow properties
+    const glowWidth = 30; // Base width of the glow
+    const glowOffset = 2; // Distance from image edge
+    const waveAmplitude = 2; // Amplitude of the wave effect
+    const waveFrequency = 20; // Number of waves around each circle
+    const animationSpeed = 1; // Speed of the animation
+    const blurRadius = 5; // Blur for softness
+    const radiusScale = 0.1; // Scale to match current glow size
+    const circleSpacing = (Math.max(width, height) / 2 + glowOffset) * radiusScale * 2.5; // Spacing between circles
+
+    
+
+    
+    // Calculate the base radius for each circle
+    const radius = (Math.max(width, height) / 2 + glowOffset) * radiusScale;
+
+    // Define centers for three circles (left, center, right)
+    const centerY = (height + 2 * (glowOffset + glowWidth)) / 2 ;
+    const centersX = [
+        (offscreenCanvas.width / 3.05) - circleSpacing, // Left circle
+        offscreenCanvas.width / 2, // Center circle
+        (offscreenCanvas.width / 1.495) + circleSpacing // Right circle
+    ];
+
+        // Determine gradient type and blending factor for smooth transition
+    const cycleTime = time % 60; // Cycle every 60 seconds
+    const transitionDuration = 4; // 4-second fade for smoother transition
+    let linearWeight = 1;
+    let radialWeight = 0;
+    if (cycleTime < 30) {
+        // Linear phase (0–30 seconds)
+        if (cycleTime > 26) {
+            // Fade to radial over 4 seconds (26–30)
+            const t = (cycleTime - 26) / transitionDuration;
+            linearWeight = Math.cos(t * Math.PI / 2); // Cosine easing for smoothness
+            radialWeight = 1 - linearWeight;
+        }
+    } else {
+        // Radial phase (30–60 seconds)
+        if (cycleTime > 56) {
+            // Fade to linear over 4 seconds (56–60)
+            const t = (cycleTime - 56) / transitionDuration;
+            radialWeight = Math.cos(t * Math.PI / 2); // Cosine easing
+            linearWeight = 1 - radialWeight;
+        } else {
+            linearWeight = 0;
+            radialWeight = 1;
+        }
+    }
+
+    // Helper function to normalize color stop positions to [0, 1]
+    const normalizeStop = (stop) => {
+        return ((stop % 1) + 1) % 1; // Ensures stop is between 0 and 1
+    };
+
+    
+
+    // Create wavy circular glow for each circle
+    offCtx.shadowBlur = blurRadius;
+    offCtx.shadowColor = 'rgba(255, 162, 232, 0.37)'; // Soft white for glow effect
+
+    centersX.forEach((centerX, index) => {
+        offCtx.beginPath();
+        const segments = 360; // Number of segments for smooth circle
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * 2 * Math.PI; // Angle in radians
+            // Calculate wave offset with phase shift for each circle
+            const phaseShift = (index * 2 * Math.PI) / 8; // Offset waves for visual variety
+            const wave = Math.sin(waveFrequency * angle + time * animationSpeed + phaseShift) * waveAmplitude;
+            const currentRadius = radius + wave;
+
+            // Calculate point on circular path
+            const glowX = centerX + currentRadius * Math.cos(angle);
+            const glowY = centerY + currentRadius * Math.sin(angle);
+
+            if (i === 0) {
+                offCtx.moveTo(glowX, glowY);
+            } else {
+                offCtx.lineTo(glowX, glowY);
+            }
+        }
+        offCtx.closePath();
+
+         // Create gradients with extended range
+        const linearGradient = offCtx.createLinearGradient(
+            centerX - radius * 1.2, centerY + radius * 1.2, // Bottom left (extended)
+            centerX + radius * 1.2, centerY - radius * 1.2 // Top right (extended)
+        );
+        const radialGradient = offCtx.createRadialGradient(
+            centerX, centerY, 0, // Inner circle (zero for full spread)
+            centerX, centerY, radius * 1.3 // Outer circle (aligned with linear extent)
+        );
+
+        // Generate color stops to ensure middle colors reach edges
+        const colorOffset = Math.sin(time * 3.2) * 3.2; // Subtler wave
+        const stopPositions = [1, 0.8, 0.6, 0.4, 0.2, 0]; // 6 stops for even distribution
+        const colorIndices = [
+            0, // babyBlue at start
+            1, // babyGreen
+            2, // babyYellow
+            3, // babyOrange
+            4, // babyPink
+            0  // babyBlue at end
+        ];
+
+        stopPositions.forEach((pos, i) => {
+            const stopPos = normalizeStop(pos + colorOffset);
+            const colorIndex = colorIndices[i];
+            const rgbColor = `rgb(${colors[colorIndex].r}, ${colors[colorIndex].g}, ${colors[colorIndex].b})`;
+            
+            if (linearWeight > 0) {
+                linearGradient.addColorStop(stopPos, rgbColor);
+            }
+            if (radialWeight > 0) {
+                radialGradient.addColorStop(stopPos, rgbColor);
+            }
+        });
+
+        // Blend gradients if in transition
+        offCtx.strokeStyle = linearWeight >= 1 ? linearGradient : radialWeight >= 1 ? radialGradient : (() => {
+            const blendedCanvas = document.createElement('canvas');
+            blendedCanvas.width = offscreenCanvas.width;
+            blendedCanvas.height = offscreenCanvas.height;
+            const blendedCtx = blendedCanvas.getContext('2d');
+            blendedCtx.globalAlpha = linearWeight;
+            blendedCtx.fillStyle = linearGradient;
+            blendedCtx.fillRect(0, 0, blendedCanvas.width, blendedCanvas.height);
+            blendedCtx.globalAlpha = radialWeight;
+            blendedCtx.fillStyle = radialGradient;
+            blendedCtx.fillRect(0, 0, blendedCanvas.width, blendedCanvas.height);
+            return blendedCtx.createPattern(blendedCanvas, 'no-repeat');
+        })();
+        
+        offCtx.lineWidth = glowWidth * 3.16; // Consistent with your code
+        offCtx.globalAlpha = 0.15; // Subtle transparency
+        offCtx.stroke();
+    });
+ 
+    // Draw Alyup.png centered in the offscreen canvas
+    offCtx.drawImage(img, glowOffset + glowWidth + (offscreenCanvas.width - width) / 2 - glowWidth, glowOffset + glowWidth, width, height);
+
+
+
+    // Reset context properties
+    offCtx.globalAlpha = 0.5;
+    offCtx.shadowBlur = 0.5;
+
+    // Draw to main canvas
+    ctx.drawImage(offscreenCanvas, x - (glowOffset + glowWidth + (offscreenCanvas.width - width) / 2 - glowWidth), y - (glowOffset + glowWidth));
+    return offscreenCanvas; // Return for image export
+}
+
+// Updated drawMenu function (with fix for 'time' variable)
 function drawMenu() {
+    const time = performance.now() / 1000; // Define time at the top for all pulsing effects
     audioManager.playMenuBgm();
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Gradient and pulsing glow for ALYUP
-    const centerX = canvas.width / 2;
-    const y = canvas.height / 2 - 300;
-    ctx.textAlign = 'left';
-    const fontA = '120px Bitcount prop single';
-    const fontLY = '80px Bitcount prop single';
-    const fontUP = '100px Bitcount prop single';
-    ctx.font = fontA;
-    const widthA = ctx.measureText('A').width;
-    ctx.font = fontLY;
-    const widthLY = ctx.measureText('LY').width;
-    ctx.font = fontUP;
-    const widthUP = ctx.measureText('UP').width;
-    const totalWidth = widthA + widthLY + widthUP;
-    const startX = centerX - totalWidth / 2;
-    const gradient = ctx.createLinearGradient(startX, y, startX + totalWidth, y);
-    const time = performance.now() / 1000;
-    gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
-    gradient.addColorStop(0.5, `hsl(${(time * 60 + 120) % 360}, 100%, 50%)`);
-    gradient.addColorStop(1, `hsl(${(time * 60 + 240) % 360}, 100%, 50%)`);
-    const pulse = Math.sin(time * 2) * 5 + 10;
-    ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
-    ctx.shadowBlur = pulse;
-    ctx.font = fontA;
-    ctx.fillStyle = gradient;
-    ctx.fillText('A', startX, y);
-    ctx.font = fontLY;
-    ctx.fillText('LY', startX + widthA, y);
-    ctx.font = fontUP;
-    ctx.fillText('UP', startX + widthA + widthLY, y);
-    ctx.shadowBlur = 0;
-
+    // Draw Alyup.png with animated gradient border
+    if (alyupImg.complete && alyupImg.naturalHeight !== 0) {
+        const imgWidth = canvas.width * 0.5; // 20% of canvas width for responsiveness
+        const imgHeight = alyupImg.naturalHeight * (imgWidth / alyupImg.naturalWidth); // Maintain aspect ratio
+        const centerX = canvas.width / 2;
+        const y = canvas.height / 2 - 369; // Kept from your code
+        const x = centerX - imgWidth / 2;
+        createGradientBorder(ctx, alyupImg, x, y, imgWidth, imgHeight, time);
+        createGradientBorder2(ctx, alyupImg, x, y, imgWidth, imgHeight, time);
+    }
     // Ball selection button
     const ballButton = {
-        x: canvas.width / 2 - 95,
-        y: canvas.height / 2 - 270,
+        x: canvas.width / 2 - 85,
+        y: canvas.height / 2 - 242,
         width: 170,
         height: 40
     };
@@ -1836,13 +2521,13 @@ function drawMenu() {
     ctx.strokeRect(ballButton.x, ballButton.y, ballButton.width, ballButton.height);
     ctx.font = '22px Arial';
     ctx.fillStyle = '#fff';
-    ctx.fillText('SELECT BALL', canvas.width / 2 - 82, ballButton.y + 28);
+    ctx.fillText('SELECT BALL', canvas.width / 2 - 2, ballButton.y + 28);
 
     // Level selection grid
     ctx.font = '26px Arial';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText('LEVEL SELECT', canvas.width / 2 - 98, canvas.height / 2 - 160);
+    ctx.fillText('LEVEL SELECT', canvas.width / 2 + 5, canvas.height / 2 - 160);
     ctx.font = '16px Arial';
     for (let level = 1; level <= 100; level++) {
         const row = Math.floor((level - 1) / LEVELS_PER_ROW);
@@ -1857,19 +2542,20 @@ function drawMenu() {
 
     // Close button
     const closeButton = {
-        x: canvas.width / 2 - 50,
-        y: canvas.height / 2 + 300,
-        width: 100,
-        height: 40
-    };
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`;
-    ctx.lineWidth = outlinePulse;
-    ctx.strokeRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
-    ctx.fillStyle = '#fff';
-    ctx.font = '22px Arial';
-    ctx.fillText('CLOSE', canvas.width / 2 - 1, closeButton.y + 28);
+    x: canvas.width / 2 - 50,
+    y: canvas.height / 2 + 300,
+    width: 100,
+    height: 40
+};
+ctx.fillStyle = '#080816ff';
+ctx.fillRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
+ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`;
+ctx.lineWidth = outlinePulse;
+ctx.strokeRect(closeButton.x, closeButton.y, closeButton.width, closeButton.height);
+ctx.fillStyle = '#fff';
+ctx.font = '22px Arial';
+ctx.fillText('CLOSE', canvas.width / 2 - 1, closeButton.y + 28);
+
 
     // Unlock All Levels button
     const unlockButton = { x: 10, y: 10, width: 50, height: 50 };
@@ -1879,68 +2565,178 @@ function drawMenu() {
         ctx.fillStyle = '#fff';
         ctx.fillText('Unlock All', unlockButton.x + unlockButton.width / 2, unlockButton.y + unlockButton.height / 2 + 5);
     }
+
+
+ // Draw audio controls
+    ctx.save();
+    ctx.globalAlpha = 0.3; // Base opacity
+    const hover = Math.sin(time * 2) * 0.2 + 0.8; // Hover effect
+
+    // Music volume slider
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(audioControls.musicVolume.x, audioControls.musicVolume.y, audioControls.musicVolume.width, audioControls.musicVolume.height);
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(audioControls.musicVolume.x, audioControls.musicVolume.y, audioControls.musicVolume.width, audioControls.musicVolume.height);
+    ctx.fillStyle = 'yellow';
+    const thumbX = audioControls.musicVolume.x + audioControls.musicVolume.value * audioControls.musicVolume.width - 5;
+    ctx.fillRect(thumbX, audioControls.musicVolume.y - 5, 10, audioControls.musicVolume.height + 10);
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+    ctx.shadowBlur = 5;
+    ctx.fillStyle = 'white';
+    ctx.font = '14px Arial';
+    ctx.fillText('Music', audioControls.musicVolume.x - 50, audioControls.musicVolume.y + 10);
+
+    // Music mute button
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(audioControls.musicMute.x, audioControls.musicMute.y, audioControls.musicMute.width, audioControls.musicMute.height);
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+    ctx.strokeRect(audioControls.musicMute.x, audioControls.musicMute.y, audioControls.musicMute.width, audioControls.musicMute.height);
+    ctx.fillStyle = 'white';
+    ctx.font = '12px Arial';
+    ctx.fillText(audioControls.musicMute.text, audioControls.musicMute.x + 5, audioControls.musicMute.y + 15);
+
+    // SFX volume slider
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(audioControls.sfxVolume.x, audioControls.sfxVolume.y, audioControls.sfxVolume.width, audioControls.sfxVolume.height);
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+    ctx.strokeRect(audioControls.sfxVolume.x, audioControls.sfxVolume.y, audioControls.sfxVolume.width, audioControls.sfxVolume.height);
+    ctx.fillStyle = 'yellow';
+    const sfxThumbX = audioControls.sfxVolume.x + audioControls.sfxVolume.value * audioControls.sfxVolume.width - 5;
+    ctx.fillRect(sfxThumbX, audioControls.sfxVolume.y - 5, 10, audioControls.sfxVolume.height + 10);
+    ctx.fillStyle = 'white';
+    ctx.font = '14px Arial';
+    ctx.fillText('SFX', audioControls.sfxVolume.x - 50, audioControls.sfxVolume.y + 10);
+
+    // SFX mute button
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(audioControls.sfxMute.x, audioControls.sfxMute.y, audioControls.sfxMute.width, audioControls.sfxMute.height);
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+    ctx.strokeRect(audioControls.sfxMute.x, audioControls.sfxMute.y, audioControls.sfxMute.width, audioControls.sfxMute.height);
+    ctx.fillStyle = 'white';
+    ctx.font = '12px Arial';
+    ctx.fillText(audioControls.sfxMute.text, audioControls.sfxMute.x + 5, audioControls.sfxMute.y + 15);
+
+    // Show Controls on PC toggle
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillRect(audioControls.showControls.x, audioControls.showControls.y, audioControls.showControls.width, audioControls.showControls.height);
+    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+    ctx.strokeRect(audioControls.showControls.x, audioControls.showControls.y, audioControls.showControls.width, audioControls.showControls.height);
+    if (audioControls.showControls.checked) {
+        ctx.fillStyle = 'yellow';
+        ctx.fillRect(audioControls.showControls.x + 2, audioControls.showControls.y + 2, audioControls.showControls.width - 4, audioControls.showControls.height - 4);
+    }
+    ctx.fillStyle = 'white';
+    ctx.font = '14px Arial';
+    ctx.fillText('Show Controls on PC', audioControls.showControls.x + 95, audioControls.showControls.y + 15);
+    ctx.restore();
 }
 
+
+
+// Function to export the modified Alyup.png as an image file
+function exportAlyupImage() {
+    if (!alyupImg.complete || alyupImg.naturalHeight === 0) {
+        console.error('Alyup.png not loaded');
+        return;
+    }
+    const imgWidth = alyupImg.naturalWidth;
+    const imgHeight = alyupImg.naturalHeight;
+    const offscreenCanvas = createGradientBorder(
+        ctx,
+        alyupImg,
+        0,
+        0,
+        imgWidth,
+        imgHeight,
+        performance.now() / 1000
+    );
+    const dataUrl = offscreenCanvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'Alyup_with_gradient.png';
+    link.click();
+}
+
+// Add a button or keybinding to trigger export (e.g., press 'E' to export)
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'e' && (isMenuOpen || currentLevel === 0)) {
+        exportAlyupImage();
+    }
+});
+
+// Helper function to draw a rounded rectangle (place before drawScoreboard)
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.arcTo(x + width, y, x + width, y + radius, radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+    ctx.lineTo(x + radius, y + height);
+    ctx.arcTo(x, y + height, x, y + height - radius, radius);
+    ctx.lineTo(x, y + radius);
+    ctx.arcTo(x, y, x + radius, y, radius);
+    ctx.closePath();
+}
 
 function drawScoreboard() {
     ctx.save();
 
     // Responsive rectangle dimensions and position
-    const rectX = canvas.width * 0.0143; // 10px / 700px ≈ 0.0143
+    const rectX = canvas.width * 0.005; // 10px / 700px ≈ 0.0143
     const rectY = canvas.height * 0.0106; // 10px / 940px ≈ 0.0106
-    const rectWidth = canvas.width * 0.4; // 280px / 700px = 0.4
+    const rectWidth = canvas.width * 0.99; // 280px / 700px = 0.4
     const rectHeight = canvas.height * 0.1064; // 100px / 940px ≈ 0.1064
+     const borderRadius = canvas.width * 0.006; // Responsive corner radius (e.g., 10px at 700px canvas)
 
-    // Draw rectangle
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-    ctx.strokeStyle = '#fffffeff';
-    ctx.lineWidth = canvas.width * 0.0057; // 4px / 700px ≈ 0.0057
-    ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+   // Draw rounded rectangle with 25% transparency for fill
+    drawRoundedRect(ctx, rectX, rectY, rectWidth, rectHeight, borderRadius);
+    ctx.fillStyle = '#080816ff'; // Dark blue
+    ctx.globalAlpha = 0.50; // 75% opacity (25% transparent)
+    ctx.fill();
+    ctx.globalAlpha = 1; // Reset to fully opaque for stroke and other drawings
+    ctx.strokeStyle = '#fffffeff'; // White border
+    ctx.lineWidth = canvas.width * 0.001; // Updated line width
+    ctx.stroke();
+    
 
     // Responsive text
-    const fontSize = canvas.width * 0.0286; // 20px / 700px ≈ 0.0286
+    const fontSize = canvas.width * 0.0275; // 20px / 700px ≈ 0.0286
     ctx.font = `${fontSize}px Arial`;
     ctx.fillStyle = '#FFD700';
     ctx.textAlign = 'left';
-    ctx.fillText('ALYUP', rectX + canvas.width * 0.0143, rectY + canvas.height * 0.0426); // (20, 40) → (0.0143 * width, 0.0426 * height)
+    ctx.fillText('ALYUP', rectX + canvas.width * 0.0143, rectY + canvas.height * 0.025); // (20, 40) → (0.0143 * width, 0.0426 * height)
+    ctx.fillText(`Level: ${currentLevel}`, rectX + canvas.width * 0.1143, rectY + canvas.height * 0.025); // (150, 70) → (0.2143 * width, 0.0745 * height)
     ctx.fillStyle = '#FFF';
-    ctx.fillText(`Score: ${score + getScrollScore()}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.0745); // (20, 70) → (0.0143 * width, 0.0745 * height)
-    ctx.fillText(`High Score: ${highScore}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.1264); // (20, 100) → (0.0143 * width, 0.1064 * height)
-    ctx.fillText(`Level: ${currentLevel}`, rectX + canvas.width * 0.2143, rectY + canvas.height * 0.0745); // (150, 70) → (0.2143 * width, 0.0745 * height)
+    ctx.fillText(`Score: ${score + getScrollScore()}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.095); // (20, 70) → (0.0143 * width, 0.0745 * height)
+    ctx.fillText(`High Score: ${highScore}`, rectX + canvas.width * 0.25, rectY + canvas.height * 0.095); // (20, 100) → (0.0143 * width, 0.1064 * height)
+    
 
     // Responsive menu button
-    const menuButton = {
-        x: canvas.width * 0.6714, // 230px / 700px = 700 - 470 → 0.6714 * width
-        y: canvas.height * 0.0213, // 20px / 940px ≈ 0.0213
-        size: canvas.width * 0.0714, // 50px / 700px ≈ 0.0714
-        img: menuIconImg
-    };
-    const cx = menuButton.x + menuButton.size / 2;
+   
+      // Draw menu button (centered in scoreboard)
+    const cx = menuButton.x + menuButton.size / 2; // Center of button
     const cy = menuButton.y + menuButton.size / 2;
     const radius = keys.has('Menu') ? (menuButton.size / 2) * 0.8 : menuButton.size / 2;
+    const pulse = (Math.sin(Date.now() / 200) + 1) / 2;
 
-    // Pulsing white glow
-    const pulse = Math.sin(performance.now() / 500) * (canvas.width * 0.00286) + (canvas.width * 0.00286); // 2px / 700px ≈ 0.00286
     ctx.beginPath();
-    ctx.arc(cx, cy, radius + pulse, 0, Math.PI * 2);
+    ctx.arc(cx, cy, radius + (pulse * canvas.width * uiConfig.pulseAmplitude + canvas.width * uiConfig.pulseBase), 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.fill();
 
-    // Circular button background
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = keys.has('Menu') ? '#080816ff' : '#0f0f2bcc';
     ctx.fill();
 
-    // Button border
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = canvas.width * 0.000714; // 0.5px / 700px ≈ 0.000714
+    ctx.lineWidth = canvas.width * 0.000714;
     ctx.stroke();
 
-    // Button image
     if (menuButton.img.complete && menuButton.img.naturalHeight !== 0) {
-        const imgSize = keys.has('Menu') ? menuButton.size * 0.8 : menuButton.size * 0.9; // 40px / 50px = 0.8, 45px / 50px = 0.9
+        const imgSize = keys.has('Menu') ? menuButton.size * 0.8 : menuButton.size * 0.9;
         const imgX = cx - imgSize / 2;
         const imgY = cy - imgSize / 2;
         ctx.drawImage(menuButton.img, imgX, imgY, imgSize, imgSize);
@@ -1948,47 +2744,55 @@ function drawScoreboard() {
 
     ctx.restore();
 }
+
+
+
 function drawGloveIndicators() {
-    const circleSize = 45;
-    const spacing = 5;
-    const startX = canvas.width - (circleSize * 3 + spacing * 2) + 15; // Circles shifted right by 15 pixels
-    const startY = 50;
+    ctx.save();
+
+    // Responsive rectangle dimensions and position (99% canvas width)
+    const rectWidth = canvas.width * 0.99; // 99% of canvas width
+    const rectX = canvas.width * 0.005; // 0.5% padding on each side
+    const rectHeight = canvas.height * 0.1064; // Match scoreboard height
+    const rectY = canvas.height * gloveIndicatorConfig.startY - rectHeight / 2; // Center vertically around indicators
+    const borderRadius = canvas.width * 0.0143; // Responsive corner radius (~10px at 700px)
+
+  
+
+    // Existing glove indicators code
+    const circleSize = canvas.width * gloveIndicatorConfig.circleSize;
+    const spacing = Math.max(5, canvas.width * gloveIndicatorConfig.spacing);
+    const startX = canvas.width - (circleSize * 3 + spacing * 2) + (canvas.width * gloveIndicatorConfig.startXOffset);
+    const startY = canvas.height * gloveIndicatorConfig.startY;
 
     // Declare pulse once at the top
     const pulse = (Math.sin(Date.now() / 200) + 1) / 2; // Pulse effect (0 to 1)
 
     // Draw "BOOST" text above the circles with pulsing effect
-    ctx.globalAlpha = 0.5 + 0.8 * pulse; // Current: min 0.5, max 1 (moderate intensity)
-    // For higher intensity: ctx.globalAlpha = 0.3 + 0.7 * pulse; // min 0.3, max 1
-    // For lower intensity: ctx.globalAlpha = 0.7 + 0.3 * pulse; // min 0.7, max 1
-    ctx.font = '20px Arial';
-    ctx.fillStyle = '#FFD700'; // Yellow from scoreboard
+    ctx.globalAlpha = 0.5 + 0.8 * pulse;
+    ctx.font = `${Math.max(12, canvas.width * gloveIndicatorConfig.activateTextFontSize)}px Arial`;
+    ctx.fillStyle = '#FFD700';
     ctx.textAlign = 'center';
-    ctx.fillText('BOOST', startX + (circleSize * 1.5 + spacing) - 15, startY - 25); // Moved left by 10 pixels
-    ctx.globalAlpha = 1; // Reset alpha
+    ctx.fillText('BOOST', startX + (circleSize * 1.5 + spacing) + (canvas.width * gloveIndicatorConfig.activateTextOffsetX), startY + (canvas.height * gloveIndicatorConfig.boostTextOffsetY));
+    ctx.globalAlpha = 1;
 
     for (let i = 0; i < 3; i++) {
         ctx.beginPath();
         ctx.arc(startX + (circleSize + spacing) * i, startY, circleSize / 2, 0, Math.PI * 2);
         ctx.strokeStyle = '#FFF';
-        ctx.lineWidth = 1;
-        // Add green glow effect
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = 'rgba(0, 255, 0, 0.5)'; // Green glow
+        ctx.lineWidth = canvas.width * 0.00143;
+        ctx.shadowBlur = canvas.width * gloveIndicatorConfig.glowBlur;
+        ctx.shadowColor = 'rgba(0, 255, 0, 0.5)';
         if (player.gloveCount >= 3) {
-            ctx.globalAlpha = 0.5 + 0.85 * pulse; // Current: min 0.5, max 1 (moderate intensity)
-            // For higher intensity: ctx.globalAlpha = 0.3 + 0.7 * pulse; // min 0.3, max 1
-            // For lower intensity: ctx.globalAlpha = 0.7 + 0.3 * pulse; // min 0.7, max 1
+            ctx.globalAlpha = 0.5 + 0.85 * pulse;
         }
         ctx.stroke();
-        ctx.globalAlpha = 1; // Reset alpha
-        ctx.shadowBlur = 0; // Reset shadow to avoid affecting other drawings
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
         if (player.gloveCount > i) {
             ctx.drawImage(leftGloveImg, startX + (circleSize + spacing) * i - circleSize / 2, startY - circleSize / 2, circleSize, circleSize);
             if (player.gloveCount >= 3) {
-                ctx.globalAlpha = 0.5 + 0.85 * pulse; // Current: min 0.5, max 1 (moderate intensity)
-                // For higher intensity: ctx.globalAlpha = 0.3 + 0.7 * pulse; // min 0.3, max 1
-                // For lower intensity: ctx.globalAlpha = 0.7 + 0.3 * pulse; // min 0.7, max 1
+                ctx.globalAlpha = 0.5 + 0.85 * pulse;
                 ctx.drawImage(leftGloveImg, startX + (circleSize + spacing) * i - circleSize / 2, startY - circleSize / 2, circleSize, circleSize);
                 ctx.globalAlpha = 1;
             }
@@ -1996,20 +2800,29 @@ function drawGloveIndicators() {
     }
 
     // Draw "Press Up to Activate" text below the circles with pulsing effect
-    ctx.globalAlpha = 0.5 + 0.8 * pulse; // Current: min 0.5, max 1 (moderate intensity)
-    // For higher intensity: ctx.globalAlpha = 0.3 + 0.7 * pulse; // min 0.3, max 1
-    // For lower intensity: ctx.globalAlpha = 0.7 + 0.3 * pulse; // min 0.7, max 1
-    ctx.fillStyle = '#FFF'; // White text
-    ctx.font = '15px Arial'; // Changed font size to 15px
-    ctx.fillText('Press Up to Activate', startX + (circleSize * 1.5 + spacing) - 22, startY + 40); // Moved left by 22 pixels
-    ctx.globalAlpha = 1; // Reset alpha
+    ctx.globalAlpha = 0.5 + 0.8 * pulse;
+    ctx.fillStyle = '#FFF';
+    ctx.font = `${Math.max(10, canvas.width * gloveIndicatorConfig.activateTextFontSize)}px Arial`;
+    ctx.fillText(
+        'Press Up to Activate',
+        startX + (circleSize * 1.5 + spacing) + (canvas.width * gloveIndicatorConfig.activateTextOffsetX),
+        startY + (canvas.height * gloveIndicatorConfig.activateTextOffsetY)
+    );
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (isMenuOpen || currentLevel === 0) {
+    if (isMenuOpen) {
         drawMenu();
+        return;
+    }
+
+    if (currentLevel === 0 && !isMenuOpen) {
+        drawMenu(); // Initial menu state
         return;
     }
 
@@ -2018,7 +2831,26 @@ function draw() {
     if (backgroundImg.complete && backgroundImg.naturalHeight !== 0) {
         ctx.save();
         ctx.globalAlpha = currentOpacity;
-        ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+       // Preserve background image aspect ratio
+        const imgAspect = backgroundImg.naturalWidth / backgroundImg.naturalHeight;
+        const canvasAspect = canvas.width / canvas.height;
+        let drawWidth, drawHeight, offsetX, offsetY;
+
+        if (imgAspect > canvasAspect) {
+            // Image is wider than canvas: fit height, crop width
+            drawHeight = canvas.height;
+            drawWidth = canvas.height * imgAspect;
+            offsetX = (canvas.width - drawWidth) / 2;
+            offsetY = 0;
+        } else {
+            // Image is taller than canvas: fit width, crop height
+            drawWidth = canvas.width;
+            drawHeight = canvas.width / imgAspect;
+            offsetX = 0;
+            offsetY = (canvas.height - drawHeight) / 2;
+        }
+
+        ctx.drawImage(backgroundImg, offsetX, offsetY, drawWidth, drawHeight);
         ctx.restore();
     }
 
@@ -2027,33 +2859,38 @@ function draw() {
     gloves.forEach(g => g.draw());
     player.draw();
 
-    drawScoreboard(); // Includes menu button
+    
     drawGloveIndicators();
     drawTouchButtons();
+    drawScoreboard();
 
     if (levelComplete) {
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '40px Arial';
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-    ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 50);
-    ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2);
-    const buttonWidth = 200;
-    const buttonHeight = 50;
-    const buttonX = canvas.width / 2 - buttonWidth / 2;
-    const buttonY = canvas.height / 2 + 50;
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
-    ctx.fillStyle = '#FFD700';
-    ctx.fillText('Next Level', canvas.width / 2, buttonY + buttonHeight / 2 + 5);
-}
+        ctx.fillStyle = '#080816ff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+         ctx.font = `${0.0571 * canvas.width}px Arial`; // 40px / 700px
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 50);
+        ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2);
+        const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
+        const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
+        const buttonX = canvas.width / 2 - buttonWidth / 2;
+        const buttonY = canvas.height / 2 + 50;
+        ctx.fillStyle = '#080816ff';
+        ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText('Next Level', canvas.width / 2, buttonY + buttonHeight / 2 + 5);
+    }
 
     if (currentEffectUpdate) {
         currentEffectUpdate((lastTime > 0 ? (performance.now() - lastTime) / 1000 : 0));
     }
     renderer.render(scene, camera);
 }
+
+// Ensure resize handler is called initially
+handleResize();
+window.addEventListener('resize', handleResize);
 
    // Game loop
     let lastTime = 0;
@@ -2071,6 +2908,9 @@ function draw() {
         draw();
         requestAnimationFrame(gameLoop);
     }
-    handleResize();
-    currentLevel = 0;
-    requestAnimationFrame(gameLoop);
+
+    // Initialize
+handleResize();
+currentLevel = 0;
+setGameState('menu');
+requestAnimationFrame(gameLoop);
