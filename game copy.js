@@ -36,6 +36,8 @@ let showControlsOnPC = localStorage.getItem('showControlsOnPC') === 'true' || tr
 // Reference to game container
 const gameContainer = document.getElementById('game-container');
 
+
+
 // Function to update visibility of menu-only elements
 function updateMenuElementsVisibility() {
     console.log(`Updating visibility, gameState: ${gameState}`);
@@ -133,6 +135,47 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
 camera.position.z = 5;
 
+// Configuration object for UI elements (responsive values)
+const uiConfig = {
+    circleSize: 0.0643, // 45px / 700px ≈ 0.0643 of canvas width
+    spacing: 0.0071, // 5px / 700px ≈ 0.0071 of canvas width
+    startXOffset: 0.0214, // 15px / 700px ≈ 0.0214 (right shift for glove indicators)
+    startY: 0.0532, // 50px / 940px ≈ 0.0532 of canvas height
+    boostTextFontSize: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
+    boostTextOffsetY: -0.0266, // -25px / 940px ≈ -0.0266 of canvas height
+    activateTextFontSize: 0.0214, // 15px / 700px ≈ 0.0214 of canvas width
+    activateTextOffsetX: -0.0314, // -22px / 700px ≈ -0.0314 of canvas width
+    activateTextOffsetY: 0.0426, // 40px / 940px ≈ 0.0426 of canvas height
+    glowBlur: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
+    pulseBase: 0.00286, // 2px / 700px ≈ 0.00286 of canvas width
+    pulseAmplitude: 0.00286, // 2px / 700px ≈ 0.00286 of canvas width
+    staminaXOffset: -0.1 // Position stamina bar to the left of glove indicators (adjusted)
+};
+
+// Configuration object for glove indicators (responsive values)
+const gloveIndicatorConfig = {
+    circleSize: 0.0643, // 45px / 700px ≈ 0.0643 of canvas width
+    spacing: 0.0071, // 5px / 700px ≈ 0.0071 of canvas width
+    startXOffset: 0.0214, // 15px / 700px ≈ 0.0214 (right shift)
+    startY: 0.0532, // 50px / 940px ≈ 0.0532 of canvas height
+    boostTextFontSize: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
+    boostTextOffsetY: -0.0266, // -25px / 940px ≈ -0.0266 of canvas height
+    activateTextFontSize: 0.0214, // 15px / 700px ≈ 0.0214 of canvas width
+    activateTextOffsetX: -0.0314, // -22px / 700px ≈ -0.0314 of canvas width
+    activateTextOffsetY: 0.0426, // 40px / 940px ≈ 0.0426 of canvas height
+    glowBlur: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
+    pulseBase: 0.00286, // 2px / 700px ≈ 0.00286 of canvas width
+    pulseAmplitude: 0.00286 // 2px / 700px ≈ 0.00286 of canvas width
+};
+
+// Define menuButton globally (place after uiConfig and asset loading)
+const menuButton = {
+    x: canvas.width * 0.005 + (canvas.width * 0.99 / 2) - (canvas.width * uiConfig.circleSize / 2), // Center in scoreboard
+    y: canvas.height * 0.0106 + (canvas.height * 0.1064 / 2) - (canvas.width * uiConfig.circleSize / 2), // Center vertically
+    size: canvas.width * uiConfig.circleSize, // Match glove indicator size
+    img: menuIconImg // Loaded as new Image(); menuIconImg.src = 'assets/menuIcon.png'
+};
+
 // Resize handler
 function handleResize() {
     const container = document.getElementById('game-container');
@@ -148,6 +191,10 @@ function handleResize() {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
 
+  // Update menu button position (centered in scoreboard)
+    menuButton.x = canvas.width * 0.24 + (canvas.width * 0.99 / 2) - (canvas.width * uiConfig.circleSize / 2);
+    menuButton.y = canvas.height * 0.0006 + (canvas.height * 0.1064 / 2) - (canvas.width * uiConfig.circleSize / 2);
+    menuButton.size = canvas.width * uiConfig.circleSize;
 
      // Update audio controls positions
      audioControls.musicVolume.x = canvas.width - (canvas.width * 0.2143); // 150px / 700px
@@ -1381,25 +1428,20 @@ function setupTouchControls() {
 
     // Touch event handlers
 canvas.addEventListener('touchstart', (e) => {
+    console.log('Canvas touchstart event triggered');
     const rect = canvas.getBoundingClientRect();
     const canvasX = e.changedTouches[0].clientX - rect.left;
     const canvasY = e.changedTouches[0].clientY - rect.top;
-    const buttons = [
-        { x: (canvas.width - 270) / 2, y: canvas.height - 90, size: 70 },
-        { x: (canvas.width - 270) / 2 + 100, y: canvas.height - 90, size: 70 },
-        { x: (canvas.width - 270) / 2 + 200, y: canvas.height - 90, size: 70 }
-    ];
     const isInTouchButton = buttons.some(button => {
         const cx = button.x + button.size / 2;
         const cy = button.y + button.size / 2;
         const radius = button.size / 2;
         return Math.sqrt((canvasX - cx) ** 2 + (canvasY - cy) ** 2) <= radius;
     });
-    if (isInTouchButton) {
-        e.stopPropagation();
-        return;
+    if (!isInTouchButton) {
+        console.log('Canvas touchstart, processing input');
+        handleInputEvent(e, true);
     }
-    handleInputEvent(e, true);
 }, { passive: false });
 
     canvas.addEventListener('touchend', (e) => {
@@ -2590,13 +2632,7 @@ ctx.fillText('CLOSE', canvas.width / 2 - 1, closeButton.y + 28);
     ctx.restore();
 }
 
- // Define menuButton globally
-const menuButton = {
-    x: canvas.width * 0.6714, // 230px / 700px = 700 - 470 → 0.6714 * width
-    y: canvas.height * 0.0213, // 20px / 940px ≈ 0.0213
-    size: canvas.width * 0.0714, // 50px / 700px ≈ 0.0714
-    img: menuIconImg
-};
+
 
 // Function to export the modified Alyup.png as an image file
 function exportAlyupImage() {
@@ -2629,66 +2665,78 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// Helper function to draw a rounded rectangle (place before drawScoreboard)
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.arcTo(x + width, y, x + width, y + radius, radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+    ctx.lineTo(x + radius, y + height);
+    ctx.arcTo(x, y + height, x, y + height - radius, radius);
+    ctx.lineTo(x, y + radius);
+    ctx.arcTo(x, y, x + radius, y, radius);
+    ctx.closePath();
+}
+
 function drawScoreboard() {
     ctx.save();
 
     // Responsive rectangle dimensions and position
-    const rectX = canvas.width * 0.0143; // 10px / 700px ≈ 0.0143
+    const rectX = canvas.width * 0.005; // 10px / 700px ≈ 0.0143
     const rectY = canvas.height * 0.0106; // 10px / 940px ≈ 0.0106
-    const rectWidth = canvas.width * 0.4; // 280px / 700px = 0.4
+    const rectWidth = canvas.width * 0.99; // 280px / 700px = 0.4
     const rectHeight = canvas.height * 0.1064; // 100px / 940px ≈ 0.1064
+     const borderRadius = canvas.width * 0.006; // Responsive corner radius (e.g., 10px at 700px canvas)
 
-    // Draw rectangle
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
-    ctx.strokeStyle = '#fffffeff';
-    ctx.lineWidth = canvas.width * 0.0057; // 4px / 700px ≈ 0.0057
-    ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+   // Draw rounded rectangle with 25% transparency for fill
+    drawRoundedRect(ctx, rectX, rectY, rectWidth, rectHeight, borderRadius);
+    ctx.fillStyle = '#080816ff'; // Dark blue
+    ctx.globalAlpha = 0.50; // 75% opacity (25% transparent)
+    ctx.fill();
+    ctx.globalAlpha = 1; // Reset to fully opaque for stroke and other drawings
+    ctx.strokeStyle = '#fffffeff'; // White border
+    ctx.lineWidth = canvas.width * 0.001; // Updated line width
+    ctx.stroke();
+    
 
     // Responsive text
-    const fontSize = canvas.width * 0.0286; // 20px / 700px ≈ 0.0286
+    const fontSize = canvas.width * 0.0275; // 20px / 700px ≈ 0.0286
     ctx.font = `${fontSize}px Arial`;
     ctx.fillStyle = '#FFD700';
     ctx.textAlign = 'left';
-    ctx.fillText('ALYUP', rectX + canvas.width * 0.0143, rectY + canvas.height * 0.0426); // (20, 40) → (0.0143 * width, 0.0426 * height)
+    ctx.fillText('ALYUP', rectX + canvas.width * 0.0143, rectY + canvas.height * 0.025); // (20, 40) → (0.0143 * width, 0.0426 * height)
+    ctx.fillText(`Level: ${currentLevel}`, rectX + canvas.width * 0.1143, rectY + canvas.height * 0.025); // (150, 70) → (0.2143 * width, 0.0745 * height)
     ctx.fillStyle = '#FFF';
-    ctx.fillText(`Score: ${score + getScrollScore()}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.0745); // (20, 70) → (0.0143 * width, 0.0745 * height)
-    ctx.fillText(`High Score: ${highScore}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.1264); // (20, 100) → (0.0143 * width, 0.1064 * height)
-    ctx.fillText(`Level: ${currentLevel}`, rectX + canvas.width * 0.2143, rectY + canvas.height * 0.0745); // (150, 70) → (0.2143 * width, 0.0745 * height)
+    ctx.fillText(`Score: ${score + getScrollScore()}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.095); // (20, 70) → (0.0143 * width, 0.0745 * height)
+    ctx.fillText(`High Score: ${highScore}`, rectX + canvas.width * 0.25, rectY + canvas.height * 0.095); // (20, 100) → (0.0143 * width, 0.1064 * height)
+    
 
     // Responsive menu button
    
-     // Update menuButton coordinates
-    menuButton.x = canvas.width * 0.6714; // 230px / 700px
-    menuButton.y = canvas.height * 0.0213; // 20px / 940px
-    menuButton.size = canvas.width * 0.0714; // 50px / 700px
-
-    const cx = menuButton.x + menuButton.size / 2;
+      // Draw menu button (centered in scoreboard)
+    const cx = menuButton.x + menuButton.size / 2; // Center of button
     const cy = menuButton.y + menuButton.size / 2;
     const radius = keys.has('Menu') ? (menuButton.size / 2) * 0.8 : menuButton.size / 2;
-    
-    
-    // Pulsing white glow
-    const pulse = Math.sin(performance.now() / 500) * (canvas.width * 0.00286) + (canvas.width * 0.00286); // 2px / 700px ≈ 0.00286
+    const pulse = (Math.sin(Date.now() / 200) + 1) / 2;
+
     ctx.beginPath();
-    ctx.arc(cx, cy, radius + pulse, 0, Math.PI * 2);
+    ctx.arc(cx, cy, radius + (pulse * canvas.width * uiConfig.pulseAmplitude + canvas.width * uiConfig.pulseBase), 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.fill();
 
-    // Circular button background
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = keys.has('Menu') ? '#080816ff' : '#0f0f2bcc';
     ctx.fill();
 
-    // Button border
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = canvas.width * 0.000714; // 0.5px / 700px ≈ 0.000714
+    ctx.lineWidth = canvas.width * 0.000714;
     ctx.stroke();
 
-    // Button image
     if (menuButton.img.complete && menuButton.img.naturalHeight !== 0) {
-        const imgSize = keys.has('Menu') ? menuButton.size * 0.8 : menuButton.size * 0.9; // 40px / 50px = 0.8, 45px / 50px = 0.9
+        const imgSize = keys.has('Menu') ? menuButton.size * 0.8 : menuButton.size * 0.9;
         const imgX = cx - imgSize / 2;
         const imgY = cy - imgSize / 2;
         ctx.drawImage(menuButton.img, imgX, imgY, imgSize, imgSize);
@@ -2697,24 +2745,21 @@ function drawScoreboard() {
     ctx.restore();
 }
 
-// Configuration object for glove indicators (responsive values)
-const gloveIndicatorConfig = {
-    circleSize: 0.0643, // 45px / 700px ≈ 0.0643 of canvas width
-    spacing: 0.0071, // 5px / 700px ≈ 0.0071 of canvas width
-    startXOffset: 0.0214, // 15px / 700px ≈ 0.0214 (right shift)
-    startY: 0.0532, // 50px / 940px ≈ 0.0532 of canvas height
-    boostTextFontSize: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
-    boostTextOffsetY: -0.0266, // -25px / 940px ≈ -0.0266 of canvas height
-    activateTextFontSize: 0.0214, // 15px / 700px ≈ 0.0214 of canvas width
-    activateTextOffsetX: -0.0314, // -22px / 700px ≈ -0.0314 of canvas width
-    activateTextOffsetY: 0.0426, // 40px / 940px ≈ 0.0426 of canvas height
-    glowBlur: 0.0286, // 20px / 700px ≈ 0.0286 of canvas width
-    pulseBase: 0.00286, // 2px / 700px ≈ 0.00286 of canvas width
-    pulseAmplitude: 0.00286 // 2px / 700px ≈ 0.00286 of canvas width
-};
 
 
 function drawGloveIndicators() {
+    ctx.save();
+
+    // Responsive rectangle dimensions and position (99% canvas width)
+    const rectWidth = canvas.width * 0.99; // 99% of canvas width
+    const rectX = canvas.width * 0.005; // 0.5% padding on each side
+    const rectHeight = canvas.height * 0.1064; // Match scoreboard height
+    const rectY = canvas.height * gloveIndicatorConfig.startY - rectHeight / 2; // Center vertically around indicators
+    const borderRadius = canvas.width * 0.0143; // Responsive corner radius (~10px at 700px)
+
+  
+
+    // Existing glove indicators code
     const circleSize = canvas.width * gloveIndicatorConfig.circleSize;
     const spacing = Math.max(5, canvas.width * gloveIndicatorConfig.spacing);
     const startX = canvas.width - (circleSize * 3 + spacing * 2) + (canvas.width * gloveIndicatorConfig.startXOffset);
@@ -2723,32 +2768,31 @@ function drawGloveIndicators() {
     // Declare pulse once at the top
     const pulse = (Math.sin(Date.now() / 200) + 1) / 2; // Pulse effect (0 to 1)
 
-     // Draw "BOOST" text above the circles with pulsing effect
-    ctx.globalAlpha = 0.5 + 0.8 * pulse; // Moderate intensity
+    // Draw "BOOST" text above the circles with pulsing effect
+    ctx.globalAlpha = 0.5 + 0.8 * pulse;
     ctx.font = `${Math.max(12, canvas.width * gloveIndicatorConfig.activateTextFontSize)}px Arial`;
-    ctx.fillStyle = '#FFD700'; // Yellow from scoreboard
+    ctx.fillStyle = '#FFD700';
     ctx.textAlign = 'center';
     ctx.fillText('BOOST', startX + (circleSize * 1.5 + spacing) + (canvas.width * gloveIndicatorConfig.activateTextOffsetX), startY + (canvas.height * gloveIndicatorConfig.boostTextOffsetY));
-    ctx.globalAlpha = 1; // Reset alpha
+    ctx.globalAlpha = 1;
 
     for (let i = 0; i < 3; i++) {
         ctx.beginPath();
         ctx.arc(startX + (circleSize + spacing) * i, startY, circleSize / 2, 0, Math.PI * 2);
         ctx.strokeStyle = '#FFF';
-        ctx.lineWidth = canvas.width * 0.00143; // 1px / 700px ≈ 0.00143
-        // Add green glow effect
+        ctx.lineWidth = canvas.width * 0.00143;
         ctx.shadowBlur = canvas.width * gloveIndicatorConfig.glowBlur;
-        ctx.shadowColor = 'rgba(0, 255, 0, 0.5)'; // Green glow
+        ctx.shadowColor = 'rgba(0, 255, 0, 0.5)';
         if (player.gloveCount >= 3) {
-            ctx.globalAlpha = 0.5 + 0.85 * pulse; // Moderate intensity
+            ctx.globalAlpha = 0.5 + 0.85 * pulse;
         }
         ctx.stroke();
-        ctx.globalAlpha = 1; // Reset alpha
-        ctx.shadowBlur = 0; // Reset shadow
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
         if (player.gloveCount > i) {
             ctx.drawImage(leftGloveImg, startX + (circleSize + spacing) * i - circleSize / 2, startY - circleSize / 2, circleSize, circleSize);
             if (player.gloveCount >= 3) {
-                ctx.globalAlpha = 0.5 + 0.85 * pulse; // Moderate intensity
+                ctx.globalAlpha = 0.5 + 0.85 * pulse;
                 ctx.drawImage(leftGloveImg, startX + (circleSize + spacing) * i - circleSize / 2, startY - circleSize / 2, circleSize, circleSize);
                 ctx.globalAlpha = 1;
             }
@@ -2756,15 +2800,17 @@ function drawGloveIndicators() {
     }
 
     // Draw "Press Up to Activate" text below the circles with pulsing effect
-    ctx.globalAlpha = 0.5 + 0.8 * pulse; // Moderate intensity
-    ctx.fillStyle = '#FFF'; // White text
-    ctx.font = `${Math.max(10,canvas.width * gloveIndicatorConfig.activateTextFontSize)}px Arial`;
+    ctx.globalAlpha = 0.5 + 0.8 * pulse;
+    ctx.fillStyle = '#FFF';
+    ctx.font = `${Math.max(10, canvas.width * gloveIndicatorConfig.activateTextFontSize)}px Arial`;
     ctx.fillText(
         'Press Up to Activate',
         startX + (circleSize * 1.5 + spacing) + (canvas.width * gloveIndicatorConfig.activateTextOffsetX),
         startY + (canvas.height * gloveIndicatorConfig.activateTextOffsetY)
     );
-    ctx.globalAlpha = 1; // Reset alpha
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
 }
 
 function draw() {
@@ -2813,9 +2859,10 @@ function draw() {
     gloves.forEach(g => g.draw());
     player.draw();
 
-    drawScoreboard();
+    
     drawGloveIndicators();
     drawTouchButtons();
+    drawScoreboard();
 
     if (levelComplete) {
         ctx.fillStyle = '#080816ff';
