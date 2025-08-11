@@ -2,7 +2,10 @@ import { AudioManager } from './audio.js';
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas');
+if (!canvas) console.error('Canvas element not found');
 const ctx = canvas.getContext('2d');
+if (!ctx) console.error('2D context not available');
+console.log('Canvas size:', canvas.width, canvas.height);
 
 
 
@@ -20,11 +23,13 @@ const jumpImg = new Image(); jumpImg.src = 'assets/jumpSprite3.png';
 const leftGloveImg = new Image(); leftGloveImg.src = 'assets/leftGlove.png';
 const rightGloveImg = new Image(); rightGloveImg.src = 'assets/rightGlove.png';
 const backgroundImg = new Image(); backgroundImg.src = 'assets/background.jpg';
+backgroundImg.onerror = () => console.error('Background image failed to load');
 const menuIconImg = new Image(); menuIconImg.src = 'assets/menuIcon.png';
 const leftArrowImg = new Image(); leftArrowImg.src = 'assets/leftArrow.png';
 const upArrowImg = new Image(); upArrowImg.src = 'assets/upArrow.png';
 const rightArrowImg = new Image(); rightArrowImg.src = 'assets/rightArrow.png';
 const alyupImg = new Image(); alyupImg.src = 'assets/Alyup.png';
+alyupImg.onerror = () => console.error('Alyup image failed to load');
 // Initialize AudioManager
 const audioManager = new AudioManager();
 audioManager.setMusicVolume(parseFloat(localStorage.getItem('musicVolume') || '0.35'));
@@ -35,6 +40,9 @@ let gameState = 'menu'; // Adjust based on your game's state management
 let showControlsOnPC = localStorage.getItem('showControlsOnPC') === 'true' || true;
 // Reference to game container
 const gameContainer = document.getElementById('game-container');
+
+// Global variables (add near existing declarations like gameState, scrollY, etc.)
+let boostUsed = false; // Track if boost has been used
 
 
 
@@ -1304,148 +1312,77 @@ function setupTouchControls() {
         return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 768;
     }
 
-    // Touch control setup
-    const touchControls = document.getElementById('touch-controls');
-    const leftButton = document.getElementById('left-button');
-    const jumpButton = document.getElementById('jump-button');
-    const rightButton = document.getElementById('right-button');
-
-    // Button definitions with responsive sizing
+    // Calculate button positions (responsive)
     function calculateButtonPositions() {
-    const buttonSize = canvas.width * 0.175; // 10% of canvas width (70px at 700px canvas)
-    const buttonSpacing = canvas.width * 0.02; // 5% of canvas width (35px at 700px canvas)
-    const bottomMargin = canvas.width * 0.05; // 3% of canvas width (21px at 700px canvas)
-    const totalWidth = 3 * buttonSize + 2 * buttonSpacing;
-    const startX = (canvas.width - totalWidth) / 2; // Center buttons
-    return  [
-        { id: 'left', x: startX, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowLeft', img: leftArrowImg },
-        { id: 'jump', x: startX + buttonSize + buttonSpacing, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowUp', img: upArrowImg },
-        { id: 'right', x: startX + 2 * (buttonSize + buttonSpacing), y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowRight', img: rightArrowImg }
-    ];
+        const buttonSize = canvas.width * 0.175; // 10% of canvas width
+        const buttonSpacing = canvas.width * 0.2; // 5% of canvas width
+        const bottomMargin = canvas.width * 0.05; // 3% of canvas width
+        const totalWidth = 3 * buttonSize + 2 * buttonSpacing;
+        const startX = (canvas.width - totalWidth) / 2; // Center buttons
+        return [
+            { id: 'left', x: startX, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowLeft', img: leftArrowImg },
+            { id: 'jump', x: startX + buttonSize + buttonSpacing, y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowUp', img: upArrowImg },
+            { id: 'right', x: startX + 2 * (buttonSize + buttonSpacing), y: canvas.height - buttonSize - bottomMargin, size: buttonSize, key: 'ArrowRight', img: rightArrowImg }
+        ];
     }
 
-       
+    // Store buttons globally for drawing and event handling
+    buttons = calculateButtonPositions();
 
- // Update HTML button positions
-    function updateHtmlButtonPositions() {
-        const containerRect = document.getElementById('game-container').getBoundingClientRect();
-        const canvasRect = canvas.getBoundingClientRect();
-        const scaleX = canvasRect.width / canvas.width;
-        const scaleY = canvasRect.height / canvas.height;
-        const offsetX = canvasRect.left - containerRect.left;
-        const offsetY = canvasRect.top - containerRect.top;
-
-        buttons.forEach((button, index) => {
-            const htmlButton = [leftButton, jumpButton, rightButton][index];
-            const buttonWidth = button.size * scaleX;
-            const buttonHeight = button.size * scaleY;
-            const buttonX = button.x * scaleX + offsetX;
-            const buttonY = button.y * scaleY + offsetY;
-            htmlButton.style.width = `${buttonWidth}px`;
-            htmlButton.style.height = `${buttonHeight}px`;
-            htmlButton.style.position = 'absolute';
-            htmlButton.style.left = `${buttonX}px`;
-            htmlButton.style.top = `${buttonY}px`;
-            htmlButton.style.backgroundImage = `url(${button.img.src})`;
-            htmlButton.style.backgroundSize = '80%';
-            htmlButton.style.backgroundPosition = 'center';
-            htmlButton.style.backgroundRepeat = 'no-repeat';
-        });
-    }
-
-// Update button positions (exposed for resize)
-    function updateButtonPositions() {
-        buttons = calculateButtonPositions();
-        updateHtmlButtonPositions();
-    }
-
-     // Toggle visibility state
-    let showControlsOnPC = localStorage.getItem('showControlsOnPC') === 'true' || true;
-    const showControlsToggle = document.getElementById('show-controls');
-    if (showControlsToggle) {
-        showControlsToggle.addEventListener('change', () => {
-            showControlsOnPC = showControlsToggle.checked;
-            localStorage.setItem('showControlsOnPC', showControlsOnPC);
-            if (!isMobileDevice()) {
-                touchControls.classList.toggle('hidden-on-pc', !showControlsOnPC);
-            }
-            updateHtmlButtonPositions();
-        });
-    }
-
-    // Apply initial visibility
-    if (!isMobileDevice()) {
-        touchControls.classList.toggle('hidden-on-pc', !showControlsOnPC);
-    } else {
-        touchControls.style.display = 'flex';
-    }
-
-    // Touch event handlers
-    function handleTouchStart(key) {
-        return (e) => {
-            e.preventDefault();
-            keys.add(key);
-        };
-    }
-
-    function handleTouchEnd(key) {
-        return (e) => {
-            e.preventDefault();
-            keys.delete(key);
-        };
-    }
-
-    // Add touch event listeners
-    leftButton.addEventListener('touchstart', handleTouchStart('ArrowLeft'));
-    leftButton.addEventListener('touchend', handleTouchEnd('ArrowLeft'));
-    rightButton.addEventListener('touchstart', handleTouchStart('ArrowRight'));
-    rightButton.addEventListener('touchend', handleTouchEnd('ArrowRight'));
-    jumpButton.addEventListener('touchstart', handleTouchStart('ArrowUp'));
-    jumpButton.addEventListener('touchend', handleTouchEnd('ArrowUp'));
-
-    // For PC testing with mouse
-    leftButton.addEventListener('mousedown', handleTouchStart('ArrowLeft'));
-    leftButton.addEventListener('mouseup', handleTouchEnd('ArrowLeft'));
-    rightButton.addEventListener('mousedown', handleTouchStart('ArrowRight'));
-    rightButton.addEventListener('mouseup', handleTouchEnd('ArrowRight'));
-    jumpButton.addEventListener('mousedown', handleTouchStart('ArrowUp'));
-    jumpButton.addEventListener('mouseup', handleTouchEnd('ArrowUp'));
-
-    // Function to check if a point is within a button (circular hitbox)
+    // Function to check if a touch is within a button (circular hitbox)
     function isPointInButton(x, y, button) {
         const cx = button.x + button.size / 2;
         const cy = button.y + button.size / 2;
         const radius = button.size / 2;
-        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
-        return dist <= radius;
+        return Math.sqrt((x - cx) ** 2 + (y - cy) ** 2) <= radius;
     }
 
-    // Store active touches to handle multitouch
+    // Track active touches for multitouch support
     const activeTouches = new Map();
 
-    // Track boost state
-    let boostUsed = false; // Reset when boost becomes available again
+    // Touch event handlers for canvas buttons
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault(); // Prevent scrolling
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.changedTouches[0];
+        const canvasX = touch.clientX - rect.left;
+        const canvasY = touch.clientY - rect.top;
 
-    // Touch event handlers
-canvas.addEventListener('touchstart', (e) => {
-    console.log('Canvas touchstart event triggered');
-    const rect = canvas.getBoundingClientRect();
-    const canvasX = e.changedTouches[0].clientX - rect.left;
-    const canvasY = e.changedTouches[0].clientY - rect.top;
-    const isInTouchButton = buttons.some(button => {
-        const cx = button.x + button.size / 2;
-        const cy = button.y + button.size / 2;
-        const radius = button.size / 2;
-        return Math.sqrt((canvasX - cx) ** 2 + (canvasY - cy) ** 2) <= radius;
-    });
-    if (!isInTouchButton) {
-        console.log('Canvas touchstart, processing input');
-        handleInputEvent(e, true);
-    }
-}, { passive: false });
+        buttons.forEach(button => {
+            if (isPointInButton(canvasX, canvasY, button)) {
+                keys.add(button.key);
+                activeTouches.set(touch.identifier, button.key);
+                if (button.id === 'jump' && lastGloveScore > 0) {
+                    boostUsed = true; // Mark boost as used
+                }
+                console.log(`Touch started on ${button.id} button`);
+            }
+        });
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault(); // Prevent scrolling
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.changedTouches[0];
+        const canvasX = touch.clientX - rect.left;
+        const canvasY = touch.clientY - rect.top;
+
+        // Update keys based on current touch position
+        buttons.forEach(button => {
+            const wasActive = activeTouches.get(touch.identifier) === button.key;
+            const isNowActive = isPointInButton(canvasX, canvasY, button);
+            if (wasActive && !isNowActive) {
+                keys.delete(button.key);
+                activeTouches.delete(touch.identifier);
+            } else if (!wasActive && isNowActive) {
+                keys.add(button.key);
+                activeTouches.set(touch.identifier, button.key);
+            }
+        });
+    }, { passive: false });
 
     canvas.addEventListener('touchend', (e) => {
-        e.preventDefault();
+        e.preventDefault(); // Prevent scrolling
         for (const touch of e.changedTouches) {
             const key = activeTouches.get(touch.identifier);
             if (key) {
@@ -1455,33 +1392,33 @@ canvas.addEventListener('touchstart', (e) => {
         }
     }, { passive: false });
 
-    // Mouse event handlers for PC testing
-    canvas.addEventListener('mousedown', (e) => {
-        if (!isMobileDevice() && !showControlsOnPC) return;
-        const rect = canvas.getBoundingClientRect();
-        const canvasX = e.clientX - rect.left;
-        const canvasY = e.clientY - rect.top;
-        for (const button of buttons) {
-            if (isPointInButton(canvasX, canvasY, button)) {
-                keys.add(button.key);
-                if (button.id === 'jump' && lastGloveScore > 0) {
-                    boostUsed = true; // Mark boost as used
+    // Mouse event handlers for PC testing (optional, disable if not needed)
+    if (!isMobileDevice() && showControlsOnPC) {
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+            buttons.forEach(button => {
+                if (isPointInButton(canvasX, canvasY, button)) {
+                    keys.add(button.key);
+                    if (button.id === 'jump' && lastGloveScore > 0) {
+                        boostUsed = true; // Mark boost as used
+                    }
                 }
-            }
-        }
-    });
+            });
+        });
 
-    canvas.addEventListener('mouseup', (e) => {
-        if (!isMobileDevice() && !showControlsOnPC) return;
-        const rect = canvas.getBoundingClientRect();
-        const canvasX = e.clientX - rect.left;
-        const canvasY = e.clientY - rect.top;
-        for (const button of buttons) {
-            if (isPointInButton(canvasX, canvasY, button)) {
-                keys.delete(button.key);
-            }
-        }
-    });
+        canvas.addEventListener('mouseup', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const canvasX = e.clientX - rect.left;
+            const canvasY = e.clientY - rect.top;
+            buttons.forEach(button => {
+                if (isPointInButton(canvasX, canvasY, button)) {
+                    keys.delete(button.key);
+                }
+            });
+        });
+    }
 
     // Reset boostUsed when gloves are collected
     function checkBoostReset() {
@@ -1490,11 +1427,10 @@ canvas.addEventListener('touchstart', (e) => {
         }
     }
 
-    // Draw buttons with PNG images, circular shape, and glow effects
     function drawButtons() {
         if (!isMobileDevice() && !showControlsOnPC) return;
         ctx.save();
-        checkBoostReset(); // Check if boost should be reset
+        checkBoostReset(); // This now works since boostUsed is defined
         buttons.forEach(button => {
             const cx = button.x + button.size / 2;
             const cy = button.y + button.size / 2;
@@ -1502,14 +1438,12 @@ canvas.addEventListener('touchstart', (e) => {
 
             // Draw glow effect
             if (button.id === 'left' || button.id === 'right') {
-                // Pulsing white glow
                 const pulse = Math.sin(performance.now() / 500) * 2 + 2; // Pulse radius 5-10px
                 ctx.beginPath();
                 ctx.arc(cx, cy, radius + pulse, 0, Math.PI * 2);
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
                 ctx.fill();
             } else if (button.id === 'jump') {
-                // Steady white circle or RGB flash if boost available
                 ctx.beginPath();
                 ctx.arc(cx, cy, radius + 5, 0, Math.PI * 2);
                 ctx.fillStyle = (lastGloveScore > 0 && !boostUsed)
@@ -1531,7 +1465,7 @@ canvas.addEventListener('touchstart', (e) => {
 
             // Draw button image
             if (button.img.complete && button.img.naturalHeight !== 0) {
-                const imgSize = keys.has(button.key) ? button.size * 0.8 : button.size * 0.85; // Adjusted to scale with button size
+                const imgSize = keys.has(button.key) ? button.size * 0.8 : button.size * 0.85;
                 const imgX = cx - imgSize / 2;
                 const imgY = cy - imgSize / 2;
                 ctx.drawImage(button.img, imgX, imgY, imgSize, imgSize);
@@ -1540,23 +1474,17 @@ canvas.addEventListener('touchstart', (e) => {
         ctx.restore();
     }
 
-   
-
- 
-    // Initialize buttons
-    updateButtonPositions();
-
-    // Store draw function for rendering loop
-    drawButtonsFn = drawButtons;
-
-    // Add resize listener
-    window.addEventListener('resize', updateButtonPositions);
+    // Update button positions on resize
+    window.addEventListener('resize', () => {
+        buttons = calculateButtonPositions();
+    });
 
     return drawButtons;
 }
 
-// Initialize touch controls and get draw function
+// Initialize touch controls and update global draw function
 const drawTouchButtons = setupTouchControls();
+drawButtonsFn = drawTouchButtons;
 
 // Clear any existing listeners
 canvas.onclick = null;
@@ -2814,15 +2742,18 @@ function drawGloveIndicators() {
 }
 
 function draw() {
+    console.log('Drawing frame, gameState:', gameState, 'isMenuOpen:', isMenuOpen);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (isMenuOpen) {
+        console.log('Drawing menu');
         drawMenu();
         return;
     }
 
     if (currentLevel === 0 && !isMenuOpen) {
-        drawMenu(); // Initial menu state
+        console.log('Drawing initial menu');
+        drawMenu();
         return;
     }
 
@@ -2893,24 +2824,37 @@ handleResize();
 window.addEventListener('resize', handleResize);
 
    // Game loop
-    let lastTime = 0;
-    function gameLoop(timestamp) {
-        const deltaTime = (timestamp - lastTime) / 1000;
-        lastTime = timestamp;
-        update(deltaTime);
-
-        if (currentEffectUpdate) {
-            currentEffectUpdate(deltaTime);
-        }
-        camera.position.y = -scrollY / 100;
-        renderer.render(scene, camera);
-
-        draw();
-        requestAnimationFrame(gameLoop);
-    }
+  let lastTime = 0;
+function gameLoop(timestamp) {
+    console.log('Game loop running, timestamp:', timestamp);
+    const deltaTime = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+    update(deltaTime);
+    draw();
+    requestAnimationFrame(gameLoop);
+}
 
     // Initialize
+// At the end of your script
 handleResize();
+
 currentLevel = 0;
 setGameState('menu');
-requestAnimationFrame(gameLoop);
+
+// Ensure all images are loaded before starting the loop
+Promise.all([
+    new Promise(resolve => { backgroundImg.onload = resolve; backgroundImg.onerror = () => console.error('Background load failed'); backgroundImg.src = 'assets/background.jpg'; }),
+    new Promise(resolve => { alyupImg.onload = resolve; alyupImg.onerror = () => console.error('Alyup load failed'); alyupImg.src = 'assets/Alyup.png'; }),
+    ...ballImages.map(img => new Promise(resolve => { img.onload = resolve; img.onerror = () => console.error(`Ball ${img.src} load failed`); })),
+    new Promise(resolve => { platformImg.onload = resolve; platformImg.onerror = () => console.error('Platform load failed'); platformImg.src = 'assets/woodPlatform1.png'; }),
+    new Promise(resolve => { jumpImg.onload = resolve; jumpImg.onerror = () => console.error('Jump load failed'); jumpImg.src = 'assets/jumpSprite3.png'; }),
+    new Promise(resolve => { leftGloveImg.onload = resolve; leftGloveImg.onerror = () => console.error('Left Glove load failed'); leftGloveImg.src = 'assets/leftGlove.png'; }),
+    new Promise(resolve => { rightGloveImg.onload = resolve; rightGloveImg.onerror = () => console.error('Right Glove load failed'); rightGloveImg.src = 'assets/rightGlove.png'; }),
+    new Promise(resolve => { menuIconImg.onload = resolve; menuIconImg.onerror = () => console.error('Menu Icon load failed'); menuIconImg.src = 'assets/menuIcon.png'; }),
+    new Promise(resolve => { leftArrowImg.onload = resolve; leftArrowImg.onerror = () => console.error('Left Arrow load failed'); leftArrowImg.src = 'assets/leftArrow.png'; }),
+    new Promise(resolve => { upArrowImg.onload = resolve; upArrowImg.onerror = () => console.error('Up Arrow load failed'); upArrowImg.src = 'assets/upArrow.png'; }),
+    new Promise(resolve => { rightArrowImg.onload = resolve; rightArrowImg.onerror = () => console.error('Right Arrow load failed'); rightArrowImg.src = 'assets/rightArrow.png'; })
+]).then(() => {
+    console.log('All assets loaded, starting game loop');
+    requestAnimationFrame(gameLoop);
+}).catch(error => console.error('Asset loading error:', error));

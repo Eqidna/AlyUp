@@ -26,18 +26,27 @@ body {
     height: 100vh;
 }
 
+
+
 /* Card styling */
 .card {
-    width: 710px;
-    height: 950px;
+    width: 700px;
+    height: 940px;
     background-color: #000000;
-    border-radius: 15px;
+    
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     overflow: hidden; /* Ensures content stays within card boundaries */
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 0;
+}
+
+.container {
+    position: relative;
+    width: 700px;
+    height: 940px;
+    overflow: hidden; /* Clip any overflow */
 }
 
 /* Game container with aspect ratio preservation */
@@ -83,15 +92,17 @@ body {
 /* Touch controls container */
 #touch-controls {
     position: absolute;
-    bottom: 3%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 52.5%; /* 3 * 17.5% (button size) + 2 * 5% (spacing) = 52.5% */
+    bottom: 20px;
+    width: 100%;
     display: flex;
-    justify-content: center;
-    gap: 5%; /* Spacing between buttons, relative to container */
-    z-index: 1;
-    pointer-events: none;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-sizing: border-box;
+    max-width: 700px; /* Match canvas width */
+    left: 0;
+    right: 0;
+    margin: 0 auto; /* Center horizontally */
+    z-index: 1; /* Above canvas */
 }
 
 /* Control buttons with dynamic sizing */
@@ -138,9 +149,11 @@ body {
     }
 
     #touch-controls {
+        padding: 0 10px; /* Reduce padding on small screens */
         bottom: 4%;
         width: 60%; /* Slightly larger for better touch targets */
         gap: 6%;
+
     }
 
      .control-button {
@@ -152,11 +165,13 @@ body {
 @media (min-width: 769px) and (max-width: 1024px) {
     #game-container {
         width: 90vmin;
-        max-width: 700px;
+        max-width: 800px;
         aspect-ratio: 700 / 940;
     }
 
       #touch-controls {
+        padding: 0 10px; /* Reduce padding on small screens */
+        bottom: 4%;
         width: 50%;
         gap: 4%;
     }
@@ -180,6 +195,7 @@ body {
     }
 
      #touch-controls {
+        padding: 0 10px; /* Reduce padding on small screens */
         bottom: 5%;
         width: 65%;
         gap: 7%;
@@ -219,7 +235,10 @@ body {
     }
 
     #touch-controls {
-        bottom: 5vmin;
+       padding: 0 10px; /* Reduce padding on small screens */
+        bottom: 5%;
+        width: 65%;
+        gap: 7%;
     }
 }
 
