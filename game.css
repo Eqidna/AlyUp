@@ -37,6 +37,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    z-index: 0;
 }
 
 /* Game container with aspect ratio preservation */
@@ -89,7 +90,7 @@ body {
     display: flex;
     justify-content: center;
     gap: 5%; /* Spacing between buttons, relative to container */
-    z-index: 1000;
+    z-index: 1;
     pointer-events: none;
 }
 
@@ -101,6 +102,7 @@ body {
     background: transparent;
     pointer-events: auto;
     position: relative;
+    z-index: -2;
     
 }
 
