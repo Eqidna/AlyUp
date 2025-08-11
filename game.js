@@ -1313,7 +1313,7 @@ function setupTouchControls() {
     // Button definitions with responsive sizing
     function calculateButtonPositions() {
     const buttonSize = canvas.width * 0.175; // 10% of canvas width (70px at 700px canvas)
-    const buttonSpacing = canvas.width * 0.2; // 5% of canvas width (35px at 700px canvas)
+    const buttonSpacing = canvas.width * 0.02; // 5% of canvas width (35px at 700px canvas)
     const bottomMargin = canvas.width * 0.05; // 3% of canvas width (21px at 700px canvas)
     const totalWidth = 3 * buttonSize + 2 * buttonSpacing;
     const startX = (canvas.width - totalWidth) / 2; // Center buttons
