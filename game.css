@@ -31,7 +31,7 @@ body {
     position: relative;
     width: 100vmin;
     max-width: 640px;
-    aspect-ratio: 640 / 1090;;
+    aspect-ratio: 640 / 1100;;
     height: auto;
     max-height: 100vh;
 }
@@ -109,7 +109,7 @@ body {
         height: 100dvh;
         max-width: none;
         max-height: none;
-        aspect-ratio: 640 / 1090;
+        aspect-ratio: 640 / 1100;
     }
 
     #gameCanvas {
@@ -134,11 +134,11 @@ body {
 }
 
 /* Media query for tablets (768px to 1024px) */
-@media (min-width: 769px) and (max-width: 1090px) {
+@media (min-width: 769px) and (max-width: 1100px) {
     #game-container {
         width: 90vmin;
         max-width: 700px;
-        aspect-ratio: 640 / 1090;
+        aspect-ratio: 640 / 1100;
     }
 
       #touch-controls {
@@ -161,7 +161,7 @@ body {
     #game-container {
         width: 100vw;
         height: 100dvh;
-        aspect-ratio: 640 / 1090;
+        aspect-ratio: 640 / 1100;
     }
 
      #touch-controls {
@@ -185,7 +185,7 @@ body {
     #game-container {
         width: 100vw;
         height: 100dvh;
-        aspect-ratio: 640 / 1090;
+        aspect-ratio: 640 / 1100;
     }
 
     #gameCanvas {

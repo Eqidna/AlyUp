@@ -1672,7 +1672,7 @@ function handleInputEvent(e, isTouch = false) {
 
     // Menu interactions
     if (isMenuOpen || currentLevel === 0) {
-        const ballButton = { x: canvas.width / 2 - 85, y: canvas.height / 2 - 242, width: 170, height: 40 };
+        const ballButton = { x: canvas.width / 2 - 85, y: canvas.height / 2 - 300, width: 170, height: 40 };
         console.log(`Checking ball button: x[${ballButton.x}, ${ballButton.x + ballButton.width}], y[${ballButton.y}, ${ballButton.y + ballButton.height}]`);
         if (
             canvasX >= ballButton.x &&
@@ -1707,7 +1707,7 @@ function handleInputEvent(e, isTouch = false) {
         }
 
         // Close button
-        const closeButton = { x: canvas.width / 2 - 50, y: canvas.height / 2 + 300, width: 100, height: 40 };
+        const closeButton = { x: canvas.width / 2 - 50, y: canvas.height / 2 + 360, width: 100, height: 40 };
         if (
             canvasX >= closeButton.x &&
             canvasX <= closeButton.x + closeButton.width &&
@@ -2071,11 +2071,11 @@ function update(deltaTime) {
 
 // Level select grid configuration
 const LEVELS_PER_ROW = 10;
-const BUTTON_WIDTH = 50;
-const BUTTON_HEIGHT = 30;
+const BUTTON_WIDTH = 45;
+const BUTTON_HEIGHT = 25;
 const BUTTON_SPACING = 10;
-const GRID_START_X = (canvas.width - (LEVELS_PER_ROW * (BUTTON_WIDTH + BUTTON_SPACING) - BUTTON_SPACING)) / 1;
-const GRID_START_Y = canvas.height / 2 - 100;
+const GRID_START_X = (canvas.width - (LEVELS_PER_ROW * (BUTTON_WIDTH + BUTTON_SPACING) - BUTTON_SPACING)) / 1.65;
+const GRID_START_Y = canvas.height / 2 - 120;
 
 
 // Function to create three subtle wavy circular gradient glows side by side around Alyup.png
@@ -2427,7 +2427,7 @@ function drawMenu() {
         const imgWidth = canvas.width * 0.5; // 20% of canvas width for responsiveness
         const imgHeight = alyupImg.naturalHeight * (imgWidth / alyupImg.naturalWidth); // Maintain aspect ratio
         const centerX = canvas.width / 2;
-        const y = canvas.height / 2 - 460; // Kept from your code
+        const y = canvas.height / 2 - 400; // Kept from your code
         const x = centerX - imgWidth / 2;
         createGradientBorder(ctx, alyupImg, x, y, imgWidth, imgHeight, time);
         createGradientBorder2(ctx, alyupImg, x, y, imgWidth, imgHeight, time);
@@ -2435,7 +2435,7 @@ function drawMenu() {
     // Ball selection button
     const ballButton = {
         x: canvas.width / 2 - 85,
-        y: canvas.height / 2 - 360,
+        y: canvas.height / 2 - 300,
         width: 170,
         height: 40
     };
@@ -2452,10 +2452,10 @@ function drawMenu() {
     // Level selection grid
      
     
-    ctx.font = '26px Arial';
+    ctx.font = '30px Arial';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText('LEVEL SELECT', canvas.width / 2 + 5, canvas.height / 2 - 260);
+    ctx.fillText('LEVEL SELECT', canvas.width / 2 + 5, canvas.height / 2 - 180);
     ctx.font = '16px Arial';
     for (let level = 1; level <= 100; level++) {
         const row = Math.floor((level - 1) / LEVELS_PER_ROW);
