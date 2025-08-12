@@ -2,10 +2,7 @@ import { AudioManager } from './audio.js';
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas');
-if (!canvas) console.error('Canvas element not found');
 const ctx = canvas.getContext('2d');
-if (!ctx) console.error('2D context not available');
-console.log('Canvas size:', canvas.width, canvas.height);
 
 
 
@@ -23,26 +20,23 @@ const jumpImg = new Image(); jumpImg.src = 'assets/jumpSprite3.png';
 const leftGloveImg = new Image(); leftGloveImg.src = 'assets/leftGlove.png';
 const rightGloveImg = new Image(); rightGloveImg.src = 'assets/rightGlove.png';
 const backgroundImg = new Image(); backgroundImg.src = 'assets/background.jpg';
-backgroundImg.onerror = () => console.error('Background image failed to load');
 const menuIconImg = new Image(); menuIconImg.src = 'assets/menuIcon.png';
 const leftArrowImg = new Image(); leftArrowImg.src = 'assets/leftArrow.png';
 const upArrowImg = new Image(); upArrowImg.src = 'assets/upArrow.png';
 const rightArrowImg = new Image(); rightArrowImg.src = 'assets/rightArrow.png';
 const alyupImg = new Image(); alyupImg.src = 'assets/Alyup.png';
-alyupImg.onerror = () => console.error('Alyup image failed to load');
 // Initialize AudioManager
 const audioManager = new AudioManager();
 audioManager.setMusicVolume(parseFloat(localStorage.getItem('musicVolume') || '0.35'));
 audioManager.setSfxVolume(parseFloat(localStorage.getItem('sfxVolume') || '1.0'));
 
+
+let boostUsed = false; // Track if boost has been used
 // Game state (example: 'menu' or 'game')
 let gameState = 'menu'; // Adjust based on your game's state management
 let showControlsOnPC = localStorage.getItem('showControlsOnPC') === 'true' || true;
 // Reference to game container
 const gameContainer = document.getElementById('game-container');
-
-// Global variables (add near existing declarations like gameState, scrollY, etc.)
-let boostUsed = false; // Track if boost has been used
 
 
 
@@ -1427,7 +1421,8 @@ function setupTouchControls() {
         }
     }
 
-    function drawButtons() {
+    // Draw buttons with PNG images, circular shape, and glow effects
+   function drawButtons() {
         if (!isMobileDevice() && !showControlsOnPC) return;
         ctx.save();
         checkBoostReset(); // This now works since boostUsed is defined
@@ -1451,6 +1446,7 @@ function setupTouchControls() {
                     : 'rgba(255, 255, 255, 0.69)'; // Steady white
                 ctx.fill();
             }
+
 
             // Draw circular button background
             ctx.beginPath();
@@ -1485,6 +1481,8 @@ function setupTouchControls() {
 // Initialize touch controls and update global draw function
 const drawTouchButtons = setupTouchControls();
 drawButtonsFn = drawTouchButtons;
+
+
 
 // Clear any existing listeners
 canvas.onclick = null;
@@ -2742,18 +2740,15 @@ function drawGloveIndicators() {
 }
 
 function draw() {
-    console.log('Drawing frame, gameState:', gameState, 'isMenuOpen:', isMenuOpen);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (isMenuOpen) {
-        console.log('Drawing menu');
         drawMenu();
         return;
     }
 
     if (currentLevel === 0 && !isMenuOpen) {
-        console.log('Drawing initial menu');
-        drawMenu();
+        drawMenu(); // Initial menu state
         return;
     }
 
@@ -2824,37 +2819,24 @@ handleResize();
 window.addEventListener('resize', handleResize);
 
    // Game loop
-  let lastTime = 0;
-function gameLoop(timestamp) {
-    console.log('Game loop running, timestamp:', timestamp);
-    const deltaTime = (timestamp - lastTime) / 1000;
-    lastTime = timestamp;
-    update(deltaTime);
-    draw();
-    requestAnimationFrame(gameLoop);
-}
+    let lastTime = 0;
+    function gameLoop(timestamp) {
+        const deltaTime = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        update(deltaTime);
+
+        if (currentEffectUpdate) {
+            currentEffectUpdate(deltaTime);
+        }
+        camera.position.y = -scrollY / 100;
+        renderer.render(scene, camera);
+
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
 
     // Initialize
-// At the end of your script
 handleResize();
-
 currentLevel = 0;
 setGameState('menu');
-
-// Ensure all images are loaded before starting the loop
-Promise.all([
-    new Promise(resolve => { backgroundImg.onload = resolve; backgroundImg.onerror = () => console.error('Background load failed'); backgroundImg.src = 'assets/background.jpg'; }),
-    new Promise(resolve => { alyupImg.onload = resolve; alyupImg.onerror = () => console.error('Alyup load failed'); alyupImg.src = 'assets/Alyup.png'; }),
-    ...ballImages.map(img => new Promise(resolve => { img.onload = resolve; img.onerror = () => console.error(`Ball ${img.src} load failed`); })),
-    new Promise(resolve => { platformImg.onload = resolve; platformImg.onerror = () => console.error('Platform load failed'); platformImg.src = 'assets/woodPlatform1.png'; }),
-    new Promise(resolve => { jumpImg.onload = resolve; jumpImg.onerror = () => console.error('Jump load failed'); jumpImg.src = 'assets/jumpSprite3.png'; }),
-    new Promise(resolve => { leftGloveImg.onload = resolve; leftGloveImg.onerror = () => console.error('Left Glove load failed'); leftGloveImg.src = 'assets/leftGlove.png'; }),
-    new Promise(resolve => { rightGloveImg.onload = resolve; rightGloveImg.onerror = () => console.error('Right Glove load failed'); rightGloveImg.src = 'assets/rightGlove.png'; }),
-    new Promise(resolve => { menuIconImg.onload = resolve; menuIconImg.onerror = () => console.error('Menu Icon load failed'); menuIconImg.src = 'assets/menuIcon.png'; }),
-    new Promise(resolve => { leftArrowImg.onload = resolve; leftArrowImg.onerror = () => console.error('Left Arrow load failed'); leftArrowImg.src = 'assets/leftArrow.png'; }),
-    new Promise(resolve => { upArrowImg.onload = resolve; upArrowImg.onerror = () => console.error('Up Arrow load failed'); upArrowImg.src = 'assets/upArrow.png'; }),
-    new Promise(resolve => { rightArrowImg.onload = resolve; rightArrowImg.onerror = () => console.error('Right Arrow load failed'); rightArrowImg.src = 'assets/rightArrow.png'; })
-]).then(() => {
-    console.log('All assets loaded, starting game loop');
-    requestAnimationFrame(gameLoop);
-}).catch(error => console.error('Asset loading error:', error));
+requestAnimationFrame(gameLoop);

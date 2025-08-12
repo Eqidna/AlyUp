@@ -26,35 +26,12 @@ body {
     height: 100vh;
 }
 
-
-
-/* Card styling */
-.card {
-    width: 700px;
-    height: 940px;
-    background-color: #000000;
-    
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    overflow: hidden; /* Ensures content stays within card boundaries */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 0;
-}
-
-.container {
-    position: relative;
-    width: 700px;
-    height: 940px;
-    overflow: hidden; /* Clip any overflow */
-}
-
 /* Game container with aspect ratio preservation */
 #game-container {
     position: relative;
     width: 100vmin;
-    max-width: 700px;
-    aspect-ratio: 700 / 940;
+    max-width: 640px;
+    aspect-ratio: 640 / 1090;;
     height: auto;
     max-height: 100vh;
 }
@@ -92,17 +69,15 @@ body {
 /* Touch controls container */
 #touch-controls {
     position: absolute;
-    bottom: 20px;
-    width: 100%;
+    bottom: 3%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 52.5%; /* 3 * 17.5% (button size) + 2 * 5% (spacing) = 52.5% */
     display: flex;
-    justify-content: space-between;
-    padding: 0 20px;
-    box-sizing: border-box;
-    max-width: 700px; /* Match canvas width */
-    left: 0;
-    right: 0;
-    margin: 0 auto; /* Center horizontally */
-    z-index: 1; /* Above canvas */
+    justify-content: center;
+    gap: 5%; /* Spacing between buttons, relative to container */
+    z-index: 1000;
+    pointer-events: none;
 }
 
 /* Control buttons with dynamic sizing */
@@ -113,7 +88,6 @@ body {
     background: transparent;
     pointer-events: auto;
     position: relative;
-    z-index: -2;
     
 }
 
@@ -135,7 +109,7 @@ body {
         height: 100dvh;
         max-width: none;
         max-height: none;
-        aspect-ratio: 700 / 940;
+        aspect-ratio: 640 / 1090;
     }
 
     #gameCanvas {
@@ -149,11 +123,9 @@ body {
     }
 
     #touch-controls {
-        padding: 0 10px; /* Reduce padding on small screens */
         bottom: 4%;
         width: 60%; /* Slightly larger for better touch targets */
         gap: 6%;
-
     }
 
      .control-button {
@@ -162,16 +134,14 @@ body {
 }
 
 /* Media query for tablets (768px to 1024px) */
-@media (min-width: 769px) and (max-width: 1024px) {
+@media (min-width: 769px) and (max-width: 1090px) {
     #game-container {
         width: 90vmin;
-        max-width: 800px;
-        aspect-ratio: 700 / 940;
+        max-width: 700px;
+        aspect-ratio: 640 / 1090;
     }
 
       #touch-controls {
-        padding: 0 10px; /* Reduce padding on small screens */
-        bottom: 4%;
         width: 50%;
         gap: 4%;
     }
@@ -191,11 +161,10 @@ body {
     #game-container {
         width: 100vw;
         height: 100dvh;
-        aspect-ratio: 700 / 940;
+        aspect-ratio: 640 / 1090;
     }
 
      #touch-controls {
-        padding: 0 10px; /* Reduce padding on small screens */
         bottom: 5%;
         width: 65%;
         gap: 7%;
@@ -216,7 +185,7 @@ body {
     #game-container {
         width: 100vw;
         height: 100dvh;
-        aspect-ratio: 700 / 940;
+        aspect-ratio: 640 / 1090;
     }
 
     #gameCanvas {
@@ -235,10 +204,7 @@ body {
     }
 
     #touch-controls {
-       padding: 0 10px; /* Reduce padding on small screens */
-        bottom: 5%;
-        width: 65%;
-        gap: 7%;
+        bottom: 5vmin;
     }
 }
 
@@ -253,4 +219,3 @@ body {
 .control-button:active {
     opacity: 0.7;
 }
-
