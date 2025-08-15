@@ -897,17 +897,13 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-let lastInputTime = 0;
-const INPUT_DEBOUNCE = 200; // 200ms
+let lastMenuClick = 0;
+const MENU_CLICK_DEBOUNCE = 200; // 200ms debounce
+
 
 // Unified input handler for click and touch events
-function handleInputEvent(canvasX, canvasY, isTouch) {
-    const currentTime = performance.now();
-    if (currentTime - lastInputTime < INPUT_DEBOUNCE) {
-        console.log('Input debounced');
-        return false;
-    }
-    lastInputTime = currentTime;
+function handleInputEvent(e, isTouch = false) {
+    e.preventDefault();
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -951,35 +947,24 @@ function handleInputEvent(canvasX, canvasY, isTouch) {
         }
 
         // Level selection grid
-let lastLevelSelectTime = 0;
-const LEVEL_SELECT_DEBOUNCE = 500; // 500ms debounce
-if (isMenuOpen || currentLevel === 0) {
-    const currentTime = performance.now();
-    for (let level = 1; level <= 100; level++) {
-        if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue;
-        const row = Math.floor((level - 1) / LEVELS_PER_ROW);
-        const col = (level - 1) % LEVELS_PER_ROW;
-        const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
-        const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
-        if (
-            canvasX >= x &&
-            canvasX <= x + BUTTON_WIDTH &&
-            canvasY >= y &&
-            canvasY <= y + BUTTON_HEIGHT &&
-            currentTime - lastLevelSelectTime > LEVEL_SELECT_DEBOUNCE
-        ) {
-            resetLevel(level);
-            lastLevelSelectTime = currentTime;
-            isPaused = false;
-            isMenuOpen = false;
-            gameState = 'game';
-            updateMenuElementsVisibility();
-            audioManager.playSfx('levelSelect');
-            console.log(`Selected level ${level}`);
-            return true;
+        for (let level = 1; level <= 100; level++) {
+            if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue;
+            const row = Math.floor((level - 1) / LEVELS_PER_ROW);
+            const col = (level - 1) % LEVELS_PER_ROW;
+            const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
+            const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
+            if (
+                canvasX >= x &&
+                canvasX <= x + BUTTON_WIDTH &&
+                canvasY >= y &&
+                canvasY <= y + BUTTON_HEIGHT
+            ) {
+                resetLevel(level);
+                isPaused = false;
+                audioManager.playSfx('levelSelect');
+                return true;
+            }
         }
-    }
-}
 
         // Close button
         const closeButton = { x: canvas.width / 2 - 50, y: canvas.height / 2 + 360, width: 100, height: 40 };
@@ -1078,52 +1063,28 @@ if (isMenuOpen || currentLevel === 0) {
     }
 
     // Level completion screen
-   if (levelComplete) {
-    const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
-    const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
-    const buttonSpacing = 0.0213 * canvas.height; // 20px / 940px
-    const buttonX = canvas.width / 2 - buttonWidth / 2;
-    const offsetY = -200;
-    const nextButtonY = canvas.height / 2 + 100 + offsetY;
-    const retryButtonY = nextButtonY + buttonHeight + buttonSpacing;
-
-    console.log(`Input at (${canvasX.toFixed(2)}, ${canvasY.toFixed(2)}), checking buttons: Next [${buttonX}, ${nextButtonY}, ${buttonWidth}, ${buttonHeight}], Retry [${buttonX}, ${retryButtonY}, ${buttonWidth}, ${buttonHeight}]`);
-
-    // Next Level button
-    if (
-        canvasX >= buttonX &&
-        canvasX <= buttonX + buttonWidth &&
-        canvasY >= nextButtonY &&
-        canvasY <= nextButtonY + buttonHeight
-    ) {
-        console.log(`Next Level button clicked for level ${currentLevel + 1}`);
-        if (currentLevel > highestLevelCompleted) {
-            highestLevelCompleted = currentLevel;
-            localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
-            console.log(`Updated highestLevelCompleted: ${highestLevelCompleted}`);
+    if (levelComplete) {
+        const buttonWidth = 200;
+        const buttonHeight = 50;
+        const buttonX = canvas.width / 2 - buttonWidth / 2;
+        const buttonY = canvas.height / 2 + 50;
+        if (
+            canvasX >= buttonX &&
+            canvasX <= buttonX + buttonWidth &&
+            canvasY >= buttonY &&
+            canvasY <= buttonY + buttonHeight
+        ) {
+            if (currentLevel > highestLevelCompleted) {
+                highestLevelCompleted = currentLevel;
+                localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
+            }
+            resetLevel(currentLevel + 1);
+            isPaused = false;
+            audioManager.playSfx('levelSelect');
+            return true;
         }
-        resetLevel(currentLevel + 1);
-        isPaused = false;
-        audioManager.playSfx('levelSelect');
-        return true;
     }
 
-    // Retry Level button
-    if (
-        canvasX >= buttonX &&
-        canvasX <= buttonX + buttonWidth &&
-        canvasY >= retryButtonY &&
-        canvasY <= retryButtonY + buttonHeight
-    ) {
-        console.log(`Retry Level button clicked for level ${currentLevel}`);
-        resetLevel(currentLevel);
-        isPaused = false;
-        audioManager.playSfx('levelSelect');
-        return true;
-    }
-    console.log('Input ignored: Outside button bounds');
-    return false;
-}
     return false;
 }
 //Dedicated Menu Toggle Function
@@ -1205,11 +1166,12 @@ window.addEventListener('keydown', (e) => keys.add(e.key));
 window.addEventListener('keyup', (e) => keys.delete(e.key));
 
 // Game functions
-function getTotalScore() {
-    return score + getScrollScore();
-}
 function getScrollScore() {
     return -Math.floor(scrollY / 10);
+}
+
+function getTotalScore() {
+    return score + getScrollScore();
 }
 
 function getNextPlatformDistance() {
@@ -1304,7 +1266,6 @@ function update(deltaTime) {
 
  // Increment timer
     elapsedTime += deltaTime;
-    console.log(`Elapsed time: ${elapsedTime.toFixed(3)}s`); // Debug log
 
     player.handleInput();
     player.update(deltaTime);
@@ -1358,33 +1319,26 @@ function update(deltaTime) {
     gloves = gloves.filter(g => g.y <= scrollY + canvas.height + 100);
 
     const totalScore = getTotalScore();
-console.log(`Total score: ${totalScore}, scrollScore: ${getScrollScore()}, score: ${score}`); // Debug log
-
-
-if (totalScore >= currentLevel * 1000 && !levelComplete) {
-    console.log(`Level ${currentLevel} completed, elapsedTime: ${elapsedTime.toFixed(3)}s`);
-    levelComplete = true;
-    audioManager.playSfx('levelComplete');
-    // Save best time if better or not set
-    if (!bestTimes[currentLevel] || elapsedTime < bestTimes[currentLevel]) {
-        bestTimes[currentLevel] = elapsedTime;
-        try {
-            localStorage.setItem('bestTimes', JSON.stringify(bestTimes));
-            console.log(`Saved best time for level ${currentLevel}: ${formatTime(elapsedTime)}`);
-            console.log(`Current localStorage bestTimes: ${localStorage.getItem('bestTimes')}`);
-        } catch (e) {
-            console.error('Error saving bestTimes to localStorage:', e);
+    if (totalScore >= currentLevel * 1000) {
+        levelComplete = true;
+        audioManager.playSfx('levelComplete');
+    
+       // Save best time if better or not set
+        if (!bestTimes[currentLevel] || elapsedTime < bestTimes[currentLevel]) {
+            bestTimes[currentLevel] = elapsedTime;
+            try {
+                localStorage.setItem('bestTimes', JSON.stringify(bestTimes));
+                console.log(`Saved best time for level ${currentLevel}: ${formatTime(elapsedTime)}`);
+            } catch (e) {
+                console.error('Error saving bestTimes to localStorage:', e);
+            }
         }
-    } else {
-        console.log(`Best time not updated for level ${currentLevel}. Current: ${formatTime(bestTimes[currentLevel])}, New: ${formatTime(elapsedTime)}`);
+        // Update highest level completed
+        if (currentLevel > highestLevelCompleted) {
+            highestLevelCompleted = currentLevel;
+            localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
+        }
     }
-    // Update highest level completed
-    if (currentLevel > highestLevelCompleted) {
-        highestLevelCompleted = currentLevel;
-        localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
-        console.log(`Updated highestLevelCompleted: ${highestLevelCompleted}`);
-    }
-}
     if (totalScore > highScore) {
         highScore = totalScore;
         localStorage.setItem('highScore', highScore);
@@ -1407,9 +1361,10 @@ const GRID_START_Y = canvas.height / 2 - 120;
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    const millis = Math.round((seconds % 1) * 1000);
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+    const millis = Math.floor((seconds % 1) * 100);
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${millis.toString().padStart(2, '0')}`;
 }
+
 
 // Function to create three subtle wavy circular gradient glows side by side around Alyup.png
 function createGradientBorder(ctx, img, x, y, width, height, time) {
@@ -2160,59 +2115,52 @@ function draw() {
     drawTouchButtons();
     drawScoreboard();
 
-   if (levelComplete) {
-    // Reload bestTimes from localStorage to ensure latest value
-    try {
-        const storedBestTimes = localStorage.getItem('bestTimes');
-        if (storedBestTimes) {
-            bestTimes = JSON.parse(storedBestTimes);
-            console.log(`Loaded bestTimes for display: ${JSON.stringify(bestTimes)}`);
-        }
-    } catch (e) {
-        console.error('Error loading bestTimes from localStorage:', e);
+    if (levelComplete) {
+        ctx.fillStyle = '#080816ff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+         ctx.font = `${0.0571 * canvas.width}px Arial`; // 40px / 700px
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 50);
+        ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2);
+        ctx.fillText(`High Score: ${highScore}`, canvas.width / 2, canvas.height / 2 + 50); // Added high score
+        ctx.fillText(`Time: ${formatTime(elapsedTime)}`, canvas.width / 2, canvas.height / 2 + 110); // Added current time
+        ctx.fillText(
+            `Best Time: ${bestTimes[currentLevel] ? formatTime(bestTimes[currentLevel]) : '--:--:--'}`,
+            canvas.width / 2,
+            canvas.height / 2 + 160
+        ); // Added best time
+        
+
+        
+        
+        const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
+        const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
+        const buttonX = canvas.width / 2 - buttonWidth / 2;
+        const buttonY = canvas.height / 2 + 50;
+        const nextButtonY = canvas.height / 2 + 150; // Adjusted to make space
+        const retryButtonY = nextButtonY + buttonHeight + buttonSpacing;
+        
+        
+           // Next Level button
+        ctx.fillStyle = '#080816ff';
+        ctx.fillRect(buttonX, nextButtonY, buttonWidth, buttonHeight);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(performance.now() / 500) * 0.2})`;
+        ctx.lineWidth = canvas.width * 0.001;
+        ctx.strokeRect(buttonX, nextButtonY, buttonWidth, buttonHeight);
+        ctx.fillStyle = '#FFD700';
+        ctx.font = `${0.0286 * canvas.width}px Arial`; // 20px / 700px
+        ctx.fillText('Next Level', canvas.width / 2, nextButtonY + buttonHeight / 2 - 160);
+
+        // Retry Level button
+        ctx.fillStyle = '#080816ff';
+        ctx.fillRect(buttonX, retryButtonY, buttonWidth, buttonHeight);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(performance.now() / 500) * 0.2})`;
+        ctx.lineWidth = canvas.width * 0.001;
+        ctx.strokeRect(buttonX, retryButtonY, buttonWidth, buttonHeight);
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText('Retry Level', canvas.width / 2, retryButtonY + buttonHeight / 2 - 190);
     }
-
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = `${0.0571 * canvas.width}px Arial`; // 40px / 700px
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-
-    const offsetY = -200;
-    ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 150 + offsetY);
-    ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2 - 100 + offsetY);
-    ctx.fillText(`Time: ${formatTime(elapsedTime)}`, canvas.width / 2, canvas.height / 2 - 50 + offsetY);
-    const bestTimeText = bestTimes[currentLevel] ? formatTime(bestTimes[currentLevel]) : '--:--:--';
-    console.log(`Displaying Best Time for level ${currentLevel}: ${bestTimeText} (raw: ${bestTimes[currentLevel]})`);
-    ctx.fillText(`Best Time: ${bestTimeText}`, canvas.width / 2, canvas.height / 2 + 0 + offsetY);
-    ctx.fillText(`High Score: ${highScore}`, canvas.width / 2, canvas.height / 2 + 50 + offsetY);
-
-    const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
-    const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
-    const buttonSpacing = 0.0213 * canvas.height; // 20px / 940px
-    const buttonX = canvas.width / 2 - buttonWidth / 2;
-    const nextButtonY = canvas.height / 2 + 100 + offsetY;
-    const retryButtonY = nextButtonY + buttonHeight + buttonSpacing;
-
-    // Next Level button
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(buttonX, nextButtonY, buttonWidth, buttonHeight);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(performance.now() / 500) * 0.2})`;
-    ctx.lineWidth = canvas.width * 0.002;
-    ctx.strokeRect(buttonX, nextButtonY, buttonWidth, buttonHeight);
-    ctx.fillStyle = '#FFD700';
-    ctx.font = `${0.0286 * canvas.width}px Arial`; // 20px / 700px
-    ctx.fillText('Next Level', canvas.width / 2, nextButtonY + buttonHeight / 2 + 5);
-
-    // Retry Level button
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(buttonX, retryButtonY, buttonWidth, buttonHeight);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(performance.now() / 500) * 0.2})`;
-    ctx.lineWidth = canvas.width * 0.002;
-    ctx.strokeRect(buttonX, retryButtonY, buttonWidth, buttonHeight);
-    ctx.fillStyle = '#FFD700';
-    ctx.fillText('Retry Level', canvas.width / 2, retryButtonY + buttonHeight / 2 + 5);
-}
 
     if (currentEffectUpdate) {
         currentEffectUpdate((lastTime > 0 ? (performance.now() - lastTime) / 1000 : 0));

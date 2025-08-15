@@ -1,15 +1,4 @@
- import { AudioManager } from './audio.js';
-import { 
-    createStars, 
-    createLines, 
-    createStarsAndGasClouds, 
-    createCometTrail, 
-    createBubbles, 
-    createWireframeCubes, 
-    createFireworks, 
-    createDroneShow 
-} from './particlesFx.js';
-
+import { AudioManager } from './audio.js';
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas');
@@ -31,8 +20,6 @@ const jumpImg = new Image(); jumpImg.src = 'assets/jumpSprite3.png';
 const leftGloveImg = new Image(); leftGloveImg.src = 'assets/leftGlove.png';
 const rightGloveImg = new Image(); rightGloveImg.src = 'assets/rightGlove.png';
 const backgroundImg = new Image(); backgroundImg.src = 'assets/background.jpg';
-const background2Img = new Image(); background2Img.src = 'assets/background2.png'; // New background image
-const background3Img = new Image(); background3Img.src = 'assets/background3.png'; // New background image
 const menuIconImg = new Image(); menuIconImg.src = 'assets/menuIcon.png';
 const leftArrowImg = new Image(); leftArrowImg.src = 'assets/leftArrow.png';
 const upArrowImg = new Image(); upArrowImg.src = 'assets/upArrow.png';
@@ -43,19 +30,11 @@ const audioManager = new AudioManager();
 audioManager.setMusicVolume(parseFloat(localStorage.getItem('musicVolume') || '0.35'));
 audioManager.setSfxVolume(parseFloat(localStorage.getItem('sfxVolume') || '1.0'));
 
-// Background2 glow animation
-let background2PulseTime = 0; // Track pulse animation for background2Img
-let background3PulseTime = 0; // For background3Img animations
+
 let boostUsed = false; // Track if boost has been used
 // Game state (example: 'menu' or 'game')
 let gameState = 'menu'; // Adjust based on your game's state management
 let showControlsOnPC = localStorage.getItem('showControlsOnPC') === 'true' || true;
-let elapsedTime = 0; // Current level's elapsed time in seconds
-let bestTimes = JSON.parse(localStorage.getItem('bestTimes')) || {};
-console.log('Initialized bestTimes:', bestTimes); 
-// Object to store best times per level
-
-
 // Reference to game container
 const gameContainer = document.getElementById('game-container');
 
@@ -157,41 +136,6 @@ renderer.domElement.style.display = 'block';
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
 camera.position.z = 5;
-
-
-
-// Add background2.png as a Three.js mesh
-// let background2Mesh = null;
-//function setupBackground2() {
-    // Ensure background2Img is loaded
-   // if (!background2Img.complete || background2Img.naturalWidth === 0) {
-  //      background2Img.onload = setupBackground2; // Retry when loaded
-  //      return;
-  //  }
-
- // Calculate plane size to match canvas (640x1100)
-  //  const aspect = canvas.width / canvas.height; // 640 / 1100 ≈ 0.5818
-//    const frustumHeight = 2 * Math.tan(THREE.MathUtils.degToRad(75 / 2)) * camera.position.z; // ≈ 7.673
-//    const frustumWidth = frustumHeight * aspect; // ≈ 4.466
-  //  const geometry = new THREE.PlaneGeometry(frustumWidth, frustumHeight); // Matches 640x1100 in canvas space
-
-    // Create texture from background2.png
-  //  const texture = new THREE.Texture(background2Img);
-  //  texture.needsUpdate = true;
-
-    // Create material similar to platforms (MeshBasicMaterial with texture)
-    //const material = new THREE.MeshBasicMaterial({
-   //     map: texture,
-  //      transparent: true, // Allow transparency if background2.png has alpha
-   //     side: THREE.DoubleSide // Render both sides
-  //  });
-
-    // Create mesh and position it
-//    background2Mesh = new THREE.Mesh(geometry, material);
-//    background2Mesh.position.z = -5; // Behind game elements, in front of particle effects
-//    scene.add(background2Mesh);
-//}
-
 
 // Configuration object for UI elements (responsive values)
 const uiConfig = {
@@ -315,31 +259,827 @@ function updateOpacityAnimation(deltaTime) {
     }
 }
 
+// Particle effect functions
+function createStars(level) {
+    const baseCount = 5000;
+    const count = level > 1 ? Math.floor(baseCount * (1 + (level - 1) / 50)) : baseCount;
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 0.051,
+        transparent: true,
+        vertexColors: true
+    });
+    const starsPositions = [];
+    const starsOpacities = [];
+    const starsColors = [];
+    const hueOffsets = [];
+    for (let i = 0; i < count; i++) {
+        starsPositions.push((Math.random() - 0.5) * 10);
+        starsPositions.push((Math.random() - 0.5) * 450);
+        starsPositions.push((Math.random() - 0.5) * 5);
+        starsOpacities.push(Math.random());
+        hueOffsets.push(Math.random());
+        const hslColor = new THREE.Color().setHSL(hueOffsets[i], 1, 0.5);
+        starsColors.push(hslColor.r, hslColor.g, hslColor.b);
+    }
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+    starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacities, 1));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    scene.add(stars);
 
+    return function updateStars(deltaTime) {
+        const opacities = starsGeometry.attributes.opacity.array;
+        const colors = starsGeometry.attributes.color.array;
+        for (let i = 0; i < count; i++) {
+            opacities[i] += (Math.random() - 0.02) * 0.1;
+            opacities[i] = Math.max(0, Math.min(1, opacities[i]));
+            hueOffsets[i] += deltaTime * 0.1;
+            if (hueOffsets[i] > 1) hueOffsets[i] -= 1;
+            const hslColor = new THREE.Color().setHSL(hueOffsets[i], 1, 0.5);
+            colors[i * 3] = hslColor.r;
+            colors[i * 3 + 1] = hslColor.g;
+            colors[i * 3 + 2] = hslColor.b;
+        }
+        starsGeometry.attributes.opacity.needsUpdate = true;
+        starsGeometry.attributes.color.needsUpdate = true;
+    };
+}
+
+function createLines(level) {
+    const linesGroup = new THREE.Group();
+    
+    const baseLineCount = 250;
+    const lineCount = level > 8 ? Math.floor(baseLineCount * (1 + (level - 1) / 150)) : baseLineCount;
+    const lineLengths = [];
+    const lineHueOffsets = [];
+    for (let i = 0; i < lineCount; i++) {
+        const y = (Math.random() - 0.5) * 1000;
+        const z = (Math.random() - 0.5) * 10;
+        const length = Math.random() * 18 + 2;
+        const lineGeometry = new THREE.BufferGeometry();
+        const lineMaterial = new THREE.LineBasicMaterial({ vertexColors: true });
+        const positions = [-length / 2, 0, 0, length / 2, 0, 0];
+        const colors = [];
+        const hue1 = Math.random();
+        const hue2 = (hue1 + 0.3) % 1;
+        const color1 = new THREE.Color().setHSL(hue1, 1, 0.5);
+        const color2 = new THREE.Color().setHSL(hue2, 1, 0.5);
+        colors.push(color1.r, color1.g, color1.b, color2.r, color2.g, color2.b);
+        lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        lineGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        const line = new THREE.Line(lineGeometry, lineMaterial);
+        line.position.set(-10, y, z);
+        linesGroup.add(line);
+        lineLengths.push(length);
+        lineHueOffsets.push([hue1, hue2]);
+    }
+
+    const baseStarCount = 6000;
+    const starCount = level > 8 ? Math.floor(baseStarCount * (1 + (level - 1) / 50)) : baseStarCount;
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 0.051,
+        transparent: true,
+        vertexColors: true
+    });
+    const starsPositions = [];
+    const starsOpacities = [];
+    const starsColors = [];
+    const starsHueOffsets = [];
+    for (let i = 0; i < starCount; i++) {
+        starsPositions.push((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        starsOpacities.push(Math.random());
+        starsHueOffsets.push(Math.random());
+        const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+        starsColors.push(hslColor.r, hslColor.g, hslColor.b);
+    }
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+    starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacities, 1));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    linesGroup.add(stars);
+
+    scene.add(linesGroup);
+
+    return function updateLines(deltaTime) {
+        linesGroup.children.forEach((line, index) => {
+            if (index < lineCount) {
+                line.position.x += 2 * deltaTime;
+                if (line.position.x > 10) line.position.x = -10;
+                const colors = line.geometry.attributes.color.array;
+                lineHueOffsets[index][0] += deltaTime * 0.2;
+                lineHueOffsets[index][1] = (lineHueOffsets[index][0] + 0.3) % 1;
+                if (lineHueOffsets[index][0] > 1) lineHueOffsets[index][0] -= 1;
+                const color1 = new THREE.Color().setHSL(lineHueOffsets[index][0], 1, 0.5);
+                const color2 = new THREE.Color().setHSL(lineHueOffsets[index][1], 1, 0.5);
+                colors[0] = color1.r; colors[1] = color1.g; colors[2] = color1.b;
+                colors[3] = color2.r; colors[4] = color2.g; colors[5] = color2.b;
+                line.geometry.attributes.color.needsUpdate = true;
+            } else {
+                const opacities = starsGeometry.attributes.opacity.array;
+                const colors = starsGeometry.attributes.color.array;
+                for (let i = 0; i < starCount; i++) {
+                    opacities[i] += (Math.random() - 0.5) * 0.1;
+                    opacities[i] = Math.max(0, Math.min(1, opacities[i]));
+                    starsHueOffsets[i] += deltaTime * 0.2;
+                    if (starsHueOffsets[i] > 1) starsHueOffsets[i] -= 1;
+                    const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+                    colors[i * 3] = hslColor.r;
+                    colors[i * 3 + 1] = hslColor.g;
+                    colors[i * 3 + 2] = hslColor.b;
+                }
+                starsGeometry.attributes.opacity.needsUpdate = true;
+                starsGeometry.attributes.color.needsUpdate = true;
+            }
+        });
+    };
+}
+
+function createStarsAndGasClouds(level) {
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const baseStarCount = 5000;
+    const starCount = level > 8 ? Math.floor(baseStarCount * (1 + (level - 1) / 50)) : baseStarCount;
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 0.051,
+        transparent: true,
+        vertexColors: true
+    });
+    const starsPositions = [];
+    const starsOpacities = [];
+    const starsColors = [];
+    const starsHueOffsets = [];
+    for (let i = 0; i < starCount; i++) {
+        starsPositions.push((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        starsOpacities.push(Math.random());
+        starsHueOffsets.push(Math.random());
+        const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+        starsColors.push(hslColor.r, hslColor.g, hslColor.b);
+    }
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+    starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacities, 1));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    group.add(stars);
+
+    const baseSphereCount = 250;
+    const sphereCount = level > 8 ? Math.floor(baseSphereCount * (1 + (level - 1) / 50)) : baseSphereCount;
+    const spheres = [];
+    const sphereHueOffsets = [];
+    for (let i = 0; i < sphereCount; i++) {
+        const geometry = new THREE.DodecahedronGeometry(0.5, 1);
+        const hue = Math.random();
+        const material = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(hue, 1, 0.5),
+            wireframe: true
+        });
+        const sphere = new THREE.Mesh(geometry, material);
+        sphere.position.set(
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 1000,
+            (Math.random() - 0.5) * 10
+        );
+        group.add(sphere);
+        spheres.push(sphere);
+        sphereHueOffsets.push(hue);
+    }
+
+    const baseCubeCount = 100;
+    const cloudCount = level > 8 ? Math.floor(baseCubeCount * (1 + (level - 1) / 50)) : baseCubeCount;
+    const clouds = [];
+    const cloudHueOffsets = [];
+    const spawnInterval = 2;
+    let timeSinceLastSpawn = 0;
+    const maxClouds = 200;
+
+    function spawnCloud() {
+        if (clouds.length >= maxClouds) return;
+        const geometry = (clouds.length % 2 === 0) 
+            ? new THREE.TetrahedronGeometry(1, 1)
+            : new THREE.DodecahedronGeometry(1, 1);
+        const hue = Math.random();
+        const material = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(hue, 1, 0.5),
+            wireframe: true
+        });
+        const cloud = new THREE.Mesh(geometry, material);
+        cloud.position.set((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        group.add(cloud);
+        clouds.push(cloud);
+        cloudHueOffsets.push(hue);
+    }
+
+    for (let i = 0; i < cloudCount; i++) {
+        spawnCloud();
+    }
+
+    return function updateStarsAndGasClouds(deltaTime) {
+        const starOpacities = starsGeometry.attributes.opacity.array;
+        const starColors = starsGeometry.attributes.color.array;
+        for (let i = 0; i < starCount; i++) {
+            starOpacities[i] += (Math.random() - 0.5) * 0.1;
+            starOpacities[i] = Math.max(0, Math.min(1, starOpacities[i]));
+            starsHueOffsets[i] += deltaTime * 0.2;
+            if (starsHueOffsets[i] > 1) starsHueOffsets[i] -= 1;
+            const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+            starColors[i * 3] = hslColor.r;
+            starColors[i * 3 + 1] = hslColor.g;
+            starColors[i * 3 + 2] = hslColor.b;
+        }
+        starsGeometry.attributes.opacity.needsUpdate = true;
+        starsGeometry.attributes.color.needsUpdate = true;
+
+        spheres.forEach((sphere, index) => {
+            sphere.position.y += 1 * deltaTime;
+            if (sphere.position.y > 500) sphere.position.y = -500;
+            sphereHueOffsets[index] += deltaTime * 0.2;
+            if (sphereHueOffsets[index] > 1) sphereHueOffsets[index] -= 1;
+            sphere.material.color.setHSL(sphereHueOffsets[index], 1, 0.5);
+        });
+
+        clouds.forEach((cloud, index) => {
+            cloud.rotation.x += 0.5 * deltaTime;
+            cloud.rotation.y += 0.5 * deltaTime;
+            cloudHueOffsets[index] += deltaTime * 0.2;
+            if (cloudHueOffsets[index] > 1) cloudHueOffsets[index] -= 1;
+            cloud.material.color.setHSL(cloudHueOffsets[index], 1, 0.5);
+        });
+
+        timeSinceLastSpawn += deltaTime;
+        if (timeSinceLastSpawn >= spawnInterval && clouds.length < maxClouds) {
+            spawnCloud();
+            timeSinceLastSpawn = 0;
+        }
+    };
+}
+
+function createCometTrail(level) {
+    const group = new THREE.Group();
+    
+    const baseCometCount = 250;
+    const cometCount = level > 8 ? Math.floor(baseCometCount * (1 + (level - 1) / 50)) : baseCometCount;
+    const baseCometLength = 2;
+    const comets = [];
+    const cometHueOffsets = [];
+    for (let i = 0; i < cometCount; i++) {
+        const y = (Math.random() - 0.5) * 1000;
+        const z = (Math.random() - 0.5) * 10;
+        const length = baseCometLength * (0.5 + Math.random());
+        const lineGeometry = new THREE.BufferGeometry();
+        const lineMaterial = new THREE.LineBasicMaterial({ vertexColors: true });
+        const positions = [0, 0, 0, length, length, 0];
+        const colors = [];
+        const hue1 = Math.random();
+        const hue2 = (hue1 + 0.3) % 1;
+        const color1 = new THREE.Color().setHSL(hue1, 1, 0.5);
+        const color2 = new THREE.Color().setHSL(hue2, 1, 0.5);
+        colors.push(color1.r, color1.g, color1.b, color2.r, color2.g, color2.b);
+        lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        lineGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        const comet = new THREE.Line(lineGeometry, lineMaterial);
+        comet.position.set(-10, y, z);
+        group.add(comet);
+        comets.push(comet);
+        cometHueOffsets.push([hue1, hue2]);
+    }
+
+    const baseStarCount = 5000;
+    const starCount = level > 8 ? Math.floor(baseStarCount * (1 + (level - 1) / 50)) : baseStarCount;
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 0.051,
+        transparent: true,
+        vertexColors: true
+    });
+    const starsPositions = [];
+    const starsOpacities = [];
+    const starsColors = [];
+    const starsHueOffsets = [];
+    for (let i = 0; i < starCount; i++) {
+        starsPositions.push((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        starsOpacities.push(Math.random());
+        starsHueOffsets.push(Math.random());
+        const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+        starsColors.push(hslColor.r, hslColor.g, hslColor.b);
+    }
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+    starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacities, 1));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    group.add(stars);
+
+    const baseVortexCount = 15;
+    const vortexCount = level > 8 ? Math.floor(baseVortexCount * (1 + (level - 1) / 50)) : baseVortexCount;
+    const vortices = [];
+    const vortexHueOffsets = [];
+    for (let i = 0; i < vortexCount; i++) {
+        const geometry = new THREE.SphereGeometry(2, 16, 16);
+        const hue = Math.random();
+        const material = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(hue, 1, 0.5),
+            wireframe: true
+        });
+        const vortex = new THREE.Mesh(geometry, material);
+        vortex.position.set(
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 1000,
+            10 + Math.random() * 5
+        );
+        group.add(vortex);
+        vortices.push(vortex);
+        vortexHueOffsets.push(hue);
+    }
+
+    scene.add(group);
+
+    return function updateCometTrail(deltaTime) {
+        comets.forEach((comet, index) => {
+            comet.position.x += 2 * deltaTime;
+            comet.position.y += 2 * deltaTime;
+            if (comet.position.x > 10 || comet.position.y > 500) {
+                comet.position.x = -10;
+                comet.position.y = (Math.random() - 0.5) * 1000;
+                comet.position.z = (Math.random() - 0.5) * 10;
+            }
+            const colors = comet.geometry.attributes.color.array;
+            cometHueOffsets[index][0] += deltaTime * 0.2;
+            cometHueOffsets[index][1] = (cometHueOffsets[index][0] + 0.3) % 1;
+            if (cometHueOffsets[index][0] > 1) cometHueOffsets[index][0] -= 1;
+            const color1 = new THREE.Color().setHSL(cometHueOffsets[index][0], 1, 0.5);
+            const color2 = new THREE.Color().setHSL(cometHueOffsets[index][1], 1, 0.5);
+            colors[0] = color1.r; colors[1] = color1.g; colors[2] = color1.b;
+            colors[3] = color2.r; colors[4] = color2.g; colors[5] = color2.b;
+            comet.geometry.attributes.color.needsUpdate = true;
+        });
+
+        const opacities = starsGeometry.attributes.opacity.array;
+        const colors = starsGeometry.attributes.color.array;
+        for (let i = 0; i < starCount; i++) {
+            opacities[i] += (Math.random() - 0.5) * 0.1;
+            opacities[i] = Math.max(0, Math.min(1, opacities[i]));
+            starsHueOffsets[i] += deltaTime * 0.2;
+            if (starsHueOffsets[i] > 1) starsHueOffsets[i] -= 1;
+            const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+            colors[i * 3] = hslColor.r;
+            colors[i * 3 + 1] = hslColor.g;
+            colors[i * 3 + 2] = hslColor.b;
+        }
+        starsGeometry.attributes.opacity.needsUpdate = true;
+        starsGeometry.attributes.color.needsUpdate = true;
+
+        vortices.forEach((vortex, index) => {
+            vortex.rotation.x += 0.3 * deltaTime;
+            vortex.rotation.y += 0.3 * deltaTime;
+            vortexHueOffsets[index] += deltaTime * 0.2;
+            if (vortexHueOffsets[index] > 1) vortexHueOffsets[index] -= 1;
+            vortex.material.color.setHSL(vortexHueOffsets[index], 1, 0.5);
+        });
+    };
+}
+
+function createBubbles(level) {
+    const group = new THREE.Group();
+    const spheres = [];
+    
+    const baseSphereCount = 250;
+    const sphereCount = level > 8 ? Math.floor(baseSphereCount * (1 + (level - 1) / 50)) : baseSphereCount;
+    const sphereHueOffsets = [];
+
+    for (let i = 0; i < sphereCount; i++) {
+        const geometry = new THREE.SphereGeometry(0.5, 16, 16);
+        const hue = Math.random();
+        const material = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(hue, 1, 0.5),
+            wireframe: true
+        });
+        const sphere = new THREE.Mesh(geometry, material);
+        sphere.position.set(
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 1000,
+            (Math.random() - 0.5) * 10
+        );
+        group.add(sphere);
+        spheres.push(sphere);
+        sphereHueOffsets.push(hue);
+    }
+
+    const baseStarCount = 5000;
+    const starCount = level > 8 ? Math.floor(baseStarCount * (1 + (level - 1) / 50)) : baseStarCount;
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 0.051,
+        transparent: true,
+        vertexColors: true
+    });
+    const starsPositions = [];
+    const starsOpacities = [];
+    const starsColors = [];
+    const starsHueOffsets = [];
+    for (let i = 0; i < starCount; i++) {
+        starsPositions.push((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        starsOpacities.push(Math.random());
+        starsHueOffsets.push(Math.random());
+        const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+        starsColors.push(hslColor.r, hslColor.g, hslColor.b);
+    }
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+    starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacities, 1));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    group.add(stars);
+
+    scene.add(group);
+
+    return function updateBubbles(deltaTime) {
+        spheres.forEach((sphere, index) => {
+            sphere.position.y += 1 * deltaTime;
+            if (sphere.position.y > 500) sphere.position.y = -500;
+            sphereHueOffsets[index] += deltaTime * 0.2;
+            if (sphereHueOffsets[index] > 1) sphereHueOffsets[index] -= 1;
+            sphere.material.color.setHSL(sphereHueOffsets[index], 1, 0.5);
+        });
+
+        const opacities = starsGeometry.attributes.opacity.array;
+        const colors = starsGeometry.attributes.color.array;
+        for (let i = 0; i < starCount; i++) {
+            opacities[i] += (Math.random() - 0.5) * 0.1;
+            opacities[i] = Math.max(0, Math.min(1, opacities[i]));
+            starsHueOffsets[i] += deltaTime * 0.2;
+            if (starsHueOffsets[i] > 1) starsHueOffsets[i] -= 1;
+            const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+            colors[i * 3] = hslColor.r;
+            colors[i * 3 + 1] = hslColor.g;
+            colors[i * 3 + 2] = hslColor.b;
+        }
+        starsGeometry.attributes.opacity.needsUpdate = true;
+        starsGeometry.attributes.color.needsUpdate = true;
+    };
+}
+
+function createWireframeCubes(level) {
+    const group = new THREE.Group();
+    const cubes = [];
+    
+    const baseCubeCount = 100;
+    const cubeCount = level > 8 ? Math.floor(baseCubeCount * (1 + (level - 1) / 50)) : baseCubeCount;
+    const spawnInterval = 2;
+    let timeSinceLastSpawn = 0;
+    const maxCubes = 200;
+    const cubeHueOffsets = [];
+
+    function spawnCube() {
+        if (cubes.length >= maxCubes) return;
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const hue = Math.random();
+        const material = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(hue, 1, 0.5),
+            wireframe: true
+        });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        group.add(cube);
+        cubes.push(cube);
+        cubeHueOffsets.push(hue);
+    }
+
+    for (let i = 0; i < cubeCount; i++) {
+        spawnCube();
+    }
+
+    const baseStarCount = 5000;
+    const starCount = level > 8 ? Math.floor(baseStarCount * (1 + (level - 1) / 50)) : baseStarCount;
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 0.051,
+        transparent: true,
+        vertexColors: true
+    });
+    const starsPositions = [];
+    const starsOpacities = [];
+    const starsColors = [];
+    const starsHueOffsets = [];
+    for (let i = 0; i < starCount; i++) {
+        starsPositions.push((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        starsOpacities.push(Math.random());
+        starsHueOffsets.push(Math.random());
+        const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+        starsColors.push(hslColor.r, hslColor.g, hslColor.b);
+    }
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+    starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacities, 1));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    group.add(stars);
+
+    scene.add(group);
+
+    return function updateWireframeCubes(deltaTime) {
+        cubes.forEach((cube, index) => {
+            cube.rotation.x += 0.5 * deltaTime;
+            cube.rotation.y += 0.5 * deltaTime;
+            cubeHueOffsets[index] += deltaTime * 0.2;
+            if (cubeHueOffsets[index] > 1) cubeHueOffsets[index] -= 1;
+            cube.material.color.setHSL(cubeHueOffsets[index], 1, 0.5);
+        });
+
+        timeSinceLastSpawn += deltaTime;
+        if (timeSinceLastSpawn >= spawnInterval && cubes.length < maxCubes) {
+            spawnCube();
+            timeSinceLastSpawn = 0;
+        }
+
+        const opacities = starsGeometry.attributes.opacity.array;
+        const colors = starsGeometry.attributes.color.array;
+        for (let i = 0; i < starCount; i++) {
+            opacities[i] += (Math.random() - 0.5) * 0.1;
+            opacities[i] = Math.max(0, Math.min(1, opacities[i]));
+            starsHueOffsets[i] += deltaTime * 0.2;
+            if (starsHueOffsets[i] > 1) starsHueOffsets[i] -= 1;
+            const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+            colors[i * 3] = hslColor.r;
+            colors[i * 3 + 1] = hslColor.g;
+            colors[i * 3 + 2] = hslColor.b;
+        }
+        starsGeometry.attributes.opacity.needsUpdate = true;
+        starsGeometry.attributes.color.needsUpdate = true;
+    };
+}
+
+function createFireworks(level) {
+    const group = new THREE.Group();
+    scene.add(group);
+    const fireworks = [];
+    let lastSpawnTime = 0;
+    const spawnInterval = 1.2;
+
+    // Star field (from createFireworks)
+    const baseStarCount = 6000;
+    const starCount = level > 8 ? Math.floor(baseStarCount * (1 + (level - 1) / 50)) : baseStarCount;
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 0.051,
+        transparent: true,
+        vertexColors: true
+    });
+    const starsPositions = [];
+    const starsOpacities = [];
+    const starsColors = [];
+    const starsHueOffsets = [];
+    for (let i = 0; i < starCount; i++) {
+        starsPositions.push((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        starsOpacities.push(Math.random());
+        starsHueOffsets.push(Math.random());
+        const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+        starsColors.push(hslColor.r, hslColor.g, hslColor.b);
+    }
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+    starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacities, 1));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    group.add(stars);
+
+    // Firework spawning (from createFireworks)
+    const spawnFirework = () => {
+        const launchGeometry = new THREE.BufferGeometry();
+        const launchMaterial = new THREE.PointsMaterial({
+            color: new THREE.Color().setHSL(Math.random(), 1, 0.5), // Random color for variety
+            size: 0.5,
+            transparent: true,
+            opacity: 1.0
+        });
+        const launchPosition = [0, -500, (Math.random() - 0.5) * 10];
+        launchGeometry.setAttribute('position', new THREE.Float32BufferAttribute(launchPosition, 3));
+        const launchPoint = new THREE.Points(launchGeometry, launchMaterial);
+        group.add(launchPoint);
+        fireworks.push({ obj: launchPoint, time: 0, state: 'launch' });
+    };
+
+    for (let i = 0; i < 3; i++) spawnFirework();
+
+    // Lines (from createLines)
+    const baseLineCount = 250;
+    const lineCount = level > 8 ? Math.floor(baseLineCount * (1 + (level - 1) / 150)) : baseLineCount;
+    const lines = [];
+    const lineGeometries = [];
+    const lineHueOffsets = [];
+    for (let i = 0; i < lineCount; i++) {
+        const y = (Math.random() - 0.5) * 1000;
+        const z = (Math.random() - 0.5) * 10;
+        const length = Math.random() * 18 + 2;
+        const lineGeometry = new THREE.BufferGeometry();
+        const lineMaterial = new THREE.LineBasicMaterial({ vertexColors: true });
+        const positions = [-length / 2, 0, 0, length / 2, 0, 0];
+        const colors = [];
+        const hue1 = Math.random();
+        const hue2 = (hue1 + 0.3) % 1;
+        const color1 = new THREE.Color().setHSL(hue1, 1, 0.5);
+        const color2 = new THREE.Color().setHSL(hue2, 1, 0.5);
+        colors.push(color1.r, color1.g, color1.b, color2.r, color2.g, color2.b);
+        lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        lineGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        const line = new THREE.Line(lineGeometry, lineMaterial);
+        line.position.set(-10, y, z);
+        group.add(line);
+        lines.push(line);
+        lineGeometries.push(lineGeometry);
+        lineHueOffsets.push([hue1, hue2]);
+    }
+
+    return function updateFireworks(deltaTime) {
+        // Update stars (from createFireworks)
+        const starOpacities = starsGeometry.attributes.opacity.array;
+        const starColors = starsGeometry.attributes.color.array;
+        for (let i = 0; i < starCount; i++) {
+            starOpacities[i] += (Math.random() - 0.5) * 0.1;
+            starOpacities[i] = Math.max(0, Math.min(1, starOpacities[i]));
+            starsHueOffsets[i] += deltaTime * 0.2;
+            if (starsHueOffsets[i] > 1) starsHueOffsets[i] -= 1;
+            const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+            starColors[i * 3] = hslColor.r;
+            starColors[i * 3 + 1] = hslColor.g;
+            starColors[i * 3 + 2] = hslColor.b;
+        }
+        starsGeometry.attributes.opacity.needsUpdate = true;
+        starsGeometry.attributes.color.needsUpdate = true;
+
+        // Update fireworks (from createFireworks)
+        lastSpawnTime += deltaTime;
+        if (lastSpawnTime >= spawnInterval) {
+            spawnFirework();
+            lastSpawnTime = 0;
+        }
+        for (let i = fireworks.length - 1; i >= 0; i--) {
+            const fw = fireworks[i];
+            const pos = fw.obj.geometry.attributes.position.array;
+            fw.time += deltaTime;
+            if (fw.state === 'launch') {
+                pos[1] += 15 * deltaTime;
+                if (pos[1] >= 400) {
+                    fw.state = 'ready';
+                }
+            }
+            fw.obj.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // Update lines (from createLines)
+        lines.forEach((line, index) => {
+            if (index < lineCount) {
+                line.position.x += 2 * deltaTime;
+                if (line.position.x > 10) line.position.x = -10;
+                const colors = line.geometry.attributes.color.array;
+                lineHueOffsets[index][0] += deltaTime * 0.2;
+                lineHueOffsets[index][1] = (lineHueOffsets[index][0] + 0.3) % 1;
+                if (lineHueOffsets[index][0] > 1) lineHueOffsets[index][0] -= 1;
+                const color1 = new THREE.Color().setHSL(lineHueOffsets[index][0], 1, 0.5);
+                const color2 = new THREE.Color().setHSL(lineHueOffsets[index][1], 1, 0.5);
+                colors[0] = color1.r; colors[1] = color1.g; colors[2] = color1.b;
+                colors[3] = color2.r; colors[4] = color2.g; colors[5] = color2.b;
+                line.geometry.attributes.color.needsUpdate = true;
+            }
+        });
+    };
+}
+
+function createDroneShow(level) {
+    const group = new THREE.Group();
+    scene.add(group);
+
+    const baseStarCount = 5000;
+    const starCount = level > 8 ? Math.floor(baseStarCount * (1 + (level - 1) / 50)) : baseStarCount;
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 0.051,
+        transparent: true,
+        vertexColors: true
+    });
+    const starsPositions = [];
+    const starsOpacities = [];
+    const starsColors = [];
+    const starsHueOffsets = [];
+    for (let i = 0; i < starCount; i++) {
+        starsPositions.push((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        starsOpacities.push(Math.random());
+        starsHueOffsets.push(Math.random());
+        const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+        starsColors.push(hslColor.r, hslColor.g, hslColor.b);
+    }
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
+    starsGeometry.setAttribute('opacity', new THREE.Float32BufferAttribute(starsOpacities, 1));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    group.add(stars);
+
+    const baseSphereCount = 250;
+    const sphereCount = level > 8 ? Math.floor(baseSphereCount * (1 + (level - 1) / 50)) : baseSphereCount;
+    const spheres = [];
+    const sphereHueOffsets = [];
+    for (let i = 0; i < sphereCount; i++) {
+        const geometry = new THREE.IcosahedronGeometry(0.5, 1);
+        const hue = Math.random();
+        const material = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(hue, 1, 0.5),
+            wireframe: true
+        });
+        const sphere = new THREE.Mesh(geometry, material);
+        sphere.position.set(
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 1000,
+            (Math.random() - 0.5) * 10
+        );
+        group.add(sphere);
+        spheres.push(sphere);
+        sphereHueOffsets.push(hue);
+    }
+
+    const baseCubeCount = 100;
+    const cloudCount = level > 8 ? Math.floor(baseCubeCount * (1 + (level - 1) / 50)) : baseCubeCount;
+    const clouds = [];
+    const cloudHueOffsets = [];
+    const spawnInterval = 2;
+    let timeSinceLastSpawn = 0;
+    const maxClouds = 200;
+
+    function spawnCloud() {
+        if (clouds.length >= maxClouds) return;
+        const geometry = new THREE.OctahedronGeometry(1, 1);
+        geometry.scale(1, 1.5, 1);
+        const hue = Math.random();
+        const material = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(hue, 1, 0.5),
+            wireframe: true
+        });
+        const cloud = new THREE.Mesh(geometry, material);
+        cloud.position.set((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 10);
+        group.add(cloud);
+        clouds.push(cloud);
+        cloudHueOffsets.push(hue);
+    }
+
+    for (let i = 0; i < cloudCount; i++) {
+        spawnCloud();
+    }
+
+    return function updateDroneShow(deltaTime) {
+        const starOpacities = starsGeometry.attributes.opacity.array;
+        const starColors = starsGeometry.attributes.color.array;
+        for (let i = 0; i < starCount; i++) {
+            starOpacities[i] += (Math.random() - 0.5) * 0.1;
+            starOpacities[i] = Math.max(0, Math.min(1, starOpacities[i]));
+            starsHueOffsets[i] += deltaTime * 0.2;
+            if (starsHueOffsets[i] > 1) starsHueOffsets[i] -= 1;
+            const hslColor = new THREE.Color().setHSL(starsHueOffsets[i], 1, 0.5);
+            starColors[i * 3] = hslColor.r;
+            starColors[i * 3 + 1] = hslColor.g;
+            starColors[i * 3 + 2] = hslColor.b;
+        }
+        starsGeometry.attributes.opacity.needsUpdate = true;
+        starsGeometry.attributes.color.needsUpdate = true;
+
+        spheres.forEach((sphere, index) => {
+            sphere.position.y += 1 * deltaTime;
+            if (sphere.position.y > 500) sphere.position.y = -500;
+            sphereHueOffsets[index] += deltaTime * 0.2;
+            if (sphereHueOffsets[index] > 1) sphereHueOffsets[index] -= 1;
+            sphere.material.color.setHSL(sphereHueOffsets[index], 1, 0.5);
+        });
+
+        clouds.forEach((cloud, index) => {
+            cloud.rotation.x += 0.5 * deltaTime;
+            cloud.rotation.y += 0.5 * deltaTime;
+            cloudHueOffsets[index] += deltaTime * 0.2;
+            if (cloudHueOffsets[index] > 1) cloudHueOffsets[index] -= 1;
+            cloud.material.color.setHSL(cloudHueOffsets[index], 1, 0.5);
+        });
+
+        timeSinceLastSpawn += deltaTime;
+        if (timeSinceLastSpawn >= spawnInterval && clouds.length < maxClouds) {
+            spawnCloud();
+            timeSinceLastSpawn = 0;
+        }
+    };
+}
 
 // Level effect management
 function setupLevelEffect(level) {
     while (scene.children.length > 0) {
         scene.remove(scene.children[0]);
     }
-      // Re-add background2Mesh after clearing scene
-   // if (background2Mesh) {
-   //     scene.add(background2Mesh);
-   // }
-
     let effectLevel = level;
     if (level > 2) {
         effectLevel = (level - 1) % 8 + 1;
     }
     switch (effectLevel) {
-         case 1: currentEffectUpdate = createStars(scene, level); break;
-        case 2: currentEffectUpdate = createLines(scene, level); break;
-        case 3: currentEffectUpdate = createStarsAndGasClouds(scene, level); break;
-        case 4: currentEffectUpdate = createCometTrail(scene, level); break;
-        case 5: currentEffectUpdate = createBubbles(scene, level); break;
-        case 6: currentEffectUpdate = createWireframeCubes(scene, level); break;
-        case 7: currentEffectUpdate = createFireworks(scene, level); break;
-        case 8: currentEffectUpdate = createDroneShow(scene, level); break;
+        case 1: currentEffectUpdate = createStars(); break;
+        case 2: currentEffectUpdate = createLines(); break;
+        case 3: currentEffectUpdate = createStarsAndGasClouds(level); break;
+        case 4: currentEffectUpdate = createCometTrail(); break;
+        case 5: currentEffectUpdate = createBubbles(); break;
+        case 6: currentEffectUpdate = createWireframeCubes(); break;
+        case 7: currentEffectUpdate = createFireworks(); break;
+        case 8: currentEffectUpdate = createDroneShow(); break;
     }
 }
 
@@ -897,17 +1637,13 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-let lastInputTime = 0;
-const INPUT_DEBOUNCE = 200; // 200ms
+let lastMenuClick = 0;
+const MENU_CLICK_DEBOUNCE = 200; // 200ms debounce
+
 
 // Unified input handler for click and touch events
-function handleInputEvent(canvasX, canvasY, isTouch) {
-    const currentTime = performance.now();
-    if (currentTime - lastInputTime < INPUT_DEBOUNCE) {
-        console.log('Input debounced');
-        return false;
-    }
-    lastInputTime = currentTime;
+function handleInputEvent(e, isTouch = false) {
+    e.preventDefault();
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -936,7 +1672,7 @@ function handleInputEvent(canvasX, canvasY, isTouch) {
 
     // Menu interactions
     if (isMenuOpen || currentLevel === 0) {
-        const ballButton = { x: canvas.width / 2 - 85, y: canvas.height / 2 - 300, width: 170, height: 40 };
+        const ballButton = { x: canvas.width / 2 - 85, y: canvas.height / 2 - 242, width: 170, height: 40 };
         console.log(`Checking ball button: x[${ballButton.x}, ${ballButton.x + ballButton.width}], y[${ballButton.y}, ${ballButton.y + ballButton.height}]`);
         if (
             canvasX >= ballButton.x &&
@@ -951,38 +1687,27 @@ function handleInputEvent(canvasX, canvasY, isTouch) {
         }
 
         // Level selection grid
-let lastLevelSelectTime = 0;
-const LEVEL_SELECT_DEBOUNCE = 500; // 500ms debounce
-if (isMenuOpen || currentLevel === 0) {
-    const currentTime = performance.now();
-    for (let level = 1; level <= 100; level++) {
-        if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue;
-        const row = Math.floor((level - 1) / LEVELS_PER_ROW);
-        const col = (level - 1) % LEVELS_PER_ROW;
-        const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
-        const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
-        if (
-            canvasX >= x &&
-            canvasX <= x + BUTTON_WIDTH &&
-            canvasY >= y &&
-            canvasY <= y + BUTTON_HEIGHT &&
-            currentTime - lastLevelSelectTime > LEVEL_SELECT_DEBOUNCE
-        ) {
-            resetLevel(level);
-            lastLevelSelectTime = currentTime;
-            isPaused = false;
-            isMenuOpen = false;
-            gameState = 'game';
-            updateMenuElementsVisibility();
-            audioManager.playSfx('levelSelect');
-            console.log(`Selected level ${level}`);
-            return true;
+        for (let level = 1; level <= 100; level++) {
+            if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue;
+            const row = Math.floor((level - 1) / LEVELS_PER_ROW);
+            const col = (level - 1) % LEVELS_PER_ROW;
+            const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
+            const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
+            if (
+                canvasX >= x &&
+                canvasX <= x + BUTTON_WIDTH &&
+                canvasY >= y &&
+                canvasY <= y + BUTTON_HEIGHT
+            ) {
+                resetLevel(level);
+                isPaused = false;
+                audioManager.playSfx('levelSelect');
+                return true;
+            }
         }
-    }
-}
 
         // Close button
-        const closeButton = { x: canvas.width / 2 - 50, y: canvas.height / 2 + 360, width: 100, height: 40 };
+        const closeButton = { x: canvas.width / 2 - 50, y: canvas.height / 2 + 300, width: 100, height: 40 };
         if (
             canvasX >= closeButton.x &&
             canvasX <= closeButton.x + closeButton.width &&
@@ -1078,52 +1803,28 @@ if (isMenuOpen || currentLevel === 0) {
     }
 
     // Level completion screen
-   if (levelComplete) {
-    const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
-    const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
-    const buttonSpacing = 0.0213 * canvas.height; // 20px / 940px
-    const buttonX = canvas.width / 2 - buttonWidth / 2;
-    const offsetY = -200;
-    const nextButtonY = canvas.height / 2 + 100 + offsetY;
-    const retryButtonY = nextButtonY + buttonHeight + buttonSpacing;
-
-    console.log(`Input at (${canvasX.toFixed(2)}, ${canvasY.toFixed(2)}), checking buttons: Next [${buttonX}, ${nextButtonY}, ${buttonWidth}, ${buttonHeight}], Retry [${buttonX}, ${retryButtonY}, ${buttonWidth}, ${buttonHeight}]`);
-
-    // Next Level button
-    if (
-        canvasX >= buttonX &&
-        canvasX <= buttonX + buttonWidth &&
-        canvasY >= nextButtonY &&
-        canvasY <= nextButtonY + buttonHeight
-    ) {
-        console.log(`Next Level button clicked for level ${currentLevel + 1}`);
-        if (currentLevel > highestLevelCompleted) {
-            highestLevelCompleted = currentLevel;
-            localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
-            console.log(`Updated highestLevelCompleted: ${highestLevelCompleted}`);
+    if (levelComplete) {
+        const buttonWidth = 200;
+        const buttonHeight = 50;
+        const buttonX = canvas.width / 2 - buttonWidth / 2;
+        const buttonY = canvas.height / 2 + 50;
+        if (
+            canvasX >= buttonX &&
+            canvasX <= buttonX + buttonWidth &&
+            canvasY >= buttonY &&
+            canvasY <= buttonY + buttonHeight
+        ) {
+            if (currentLevel > highestLevelCompleted) {
+                highestLevelCompleted = currentLevel;
+                localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
+            }
+            resetLevel(currentLevel + 1);
+            isPaused = false;
+            audioManager.playSfx('levelSelect');
+            return true;
         }
-        resetLevel(currentLevel + 1);
-        isPaused = false;
-        audioManager.playSfx('levelSelect');
-        return true;
     }
 
-    // Retry Level button
-    if (
-        canvasX >= buttonX &&
-        canvasX <= buttonX + buttonWidth &&
-        canvasY >= retryButtonY &&
-        canvasY <= retryButtonY + buttonHeight
-    ) {
-        console.log(`Retry Level button clicked for level ${currentLevel}`);
-        resetLevel(currentLevel);
-        isPaused = false;
-        audioManager.playSfx('levelSelect');
-        return true;
-    }
-    console.log('Input ignored: Outside button bounds');
-    return false;
-}
     return false;
 }
 //Dedicated Menu Toggle Function
@@ -1205,11 +1906,12 @@ window.addEventListener('keydown', (e) => keys.add(e.key));
 window.addEventListener('keyup', (e) => keys.delete(e.key));
 
 // Game functions
-function getTotalScore() {
-    return score + getScrollScore();
-}
 function getScrollScore() {
     return -Math.floor(scrollY / 10);
+}
+
+function getTotalScore() {
+    return score + getScrollScore();
 }
 
 function getNextPlatformDistance() {
@@ -1284,7 +1986,6 @@ function resetLevel(level) {
     currentLevel = level;
     levelComplete = false;
     levelPauseTime = 0;
-    elapsedTime = 0; // Reset timer
     isMenuOpen = false; // Close menu when starting a level
     
     setupLevelEffect(level);
@@ -1301,10 +2002,6 @@ function update(deltaTime) {
         levelPauseTime += deltaTime * 1000;
         return;
     }
-
- // Increment timer
-    elapsedTime += deltaTime;
-    console.log(`Elapsed time: ${elapsedTime.toFixed(3)}s`); // Debug log
 
     player.handleInput();
     player.update(deltaTime);
@@ -1358,33 +2055,10 @@ function update(deltaTime) {
     gloves = gloves.filter(g => g.y <= scrollY + canvas.height + 100);
 
     const totalScore = getTotalScore();
-console.log(`Total score: ${totalScore}, scrollScore: ${getScrollScore()}, score: ${score}`); // Debug log
-
-
-if (totalScore >= currentLevel * 1000 && !levelComplete) {
-    console.log(`Level ${currentLevel} completed, elapsedTime: ${elapsedTime.toFixed(3)}s`);
-    levelComplete = true;
-    audioManager.playSfx('levelComplete');
-    // Save best time if better or not set
-    if (!bestTimes[currentLevel] || elapsedTime < bestTimes[currentLevel]) {
-        bestTimes[currentLevel] = elapsedTime;
-        try {
-            localStorage.setItem('bestTimes', JSON.stringify(bestTimes));
-            console.log(`Saved best time for level ${currentLevel}: ${formatTime(elapsedTime)}`);
-            console.log(`Current localStorage bestTimes: ${localStorage.getItem('bestTimes')}`);
-        } catch (e) {
-            console.error('Error saving bestTimes to localStorage:', e);
-        }
-    } else {
-        console.log(`Best time not updated for level ${currentLevel}. Current: ${formatTime(bestTimes[currentLevel])}, New: ${formatTime(elapsedTime)}`);
+    if (totalScore >= currentLevel * 1000) {
+        levelComplete = true;
+        audioManager.playSfx('levelComplete');
     }
-    // Update highest level completed
-    if (currentLevel > highestLevelCompleted) {
-        highestLevelCompleted = currentLevel;
-        localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
-        console.log(`Updated highestLevelCompleted: ${highestLevelCompleted}`);
-    }
-}
     if (totalScore > highScore) {
         highScore = totalScore;
         localStorage.setItem('highScore', highScore);
@@ -1397,19 +2071,12 @@ if (totalScore >= currentLevel * 1000 && !levelComplete) {
 
 // Level select grid configuration
 const LEVELS_PER_ROW = 10;
-const BUTTON_WIDTH = 45;
-const BUTTON_HEIGHT = 25;
+const BUTTON_WIDTH = 60;
+const BUTTON_HEIGHT = 30;
 const BUTTON_SPACING = 10;
-const GRID_START_X = (canvas.width - (LEVELS_PER_ROW * (BUTTON_WIDTH + BUTTON_SPACING) - BUTTON_SPACING)) / 1.65;
-const GRID_START_Y = canvas.height / 2 - 120;
+const GRID_START_X = (canvas.width - (LEVELS_PER_ROW * (BUTTON_WIDTH + BUTTON_SPACING) - BUTTON_SPACING)) / 2;
+const GRID_START_Y = canvas.height / 2 - 150;
 
-
-function formatTime(seconds) {
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    const millis = Math.round((seconds % 1) * 1000);
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
-}
 
 // Function to create three subtle wavy circular gradient glows side by side around Alyup.png
 function createGradientBorder(ctx, img, x, y, width, height, time) {
@@ -1760,7 +2427,7 @@ function drawMenu() {
         const imgWidth = canvas.width * 0.5; // 20% of canvas width for responsiveness
         const imgHeight = alyupImg.naturalHeight * (imgWidth / alyupImg.naturalWidth); // Maintain aspect ratio
         const centerX = canvas.width / 2;
-        const y = canvas.height / 2 - 400; // Kept from your code
+        const y = canvas.height / 2 - 369; // Kept from your code
         const x = centerX - imgWidth / 2;
         createGradientBorder(ctx, alyupImg, x, y, imgWidth, imgHeight, time);
         createGradientBorder2(ctx, alyupImg, x, y, imgWidth, imgHeight, time);
@@ -1768,7 +2435,7 @@ function drawMenu() {
     // Ball selection button
     const ballButton = {
         x: canvas.width / 2 - 85,
-        y: canvas.height / 2 - 300,
+        y: canvas.height / 2 - 242,
         width: 170,
         height: 40
     };
@@ -1783,12 +2450,10 @@ function drawMenu() {
     ctx.fillText('SELECT BALL', canvas.width / 2 - 2, ballButton.y + 28);
 
     // Level selection grid
-     
-    
-    ctx.font = '30px Arial';
+    ctx.font = '26px Arial';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.fillText('LEVEL SELECT', canvas.width / 2 + 5, canvas.height / 2 - 180);
+    ctx.fillText('LEVEL SELECT', canvas.width / 2 + 5, canvas.height / 2 - 160);
     ctx.font = '16px Arial';
     for (let level = 1; level <= 100; level++) {
         const row = Math.floor((level - 1) / LEVELS_PER_ROW);
@@ -1798,14 +2463,13 @@ function drawMenu() {
         ctx.fillStyle = (level <= highestLevelCompleted + 1 || allLevelsUnlocked) ? '#080816ff' : '#555';
         ctx.fillRect(x, y, BUTTON_WIDTH, BUTTON_HEIGHT);
         ctx.fillStyle = '#fff';
-       
-        ctx.fillText(`${level}`, x + BUTTON_WIDTH / 2 + 0, y + BUTTON_HEIGHT / 2 + 5);
+        ctx.fillText(`${level}`, x + BUTTON_WIDTH / 2 - 7, y + BUTTON_HEIGHT / 2 + 5);
     }
 
     // Close button
     const closeButton = {
     x: canvas.width / 2 - 50,
-    y: canvas.height / 2 + 360,
+    y: canvas.height / 2 + 300,
     width: 100,
     height: 40
 };
@@ -1971,8 +2635,6 @@ function drawScoreboard() {
     ctx.fillText('ALYUP', rectX + canvas.width * 0.0143, rectY + canvas.height * 0.025); // (20, 40) → (0.0143 * width, 0.0426 * height)
     ctx.fillText(`Level: ${currentLevel}`, rectX + canvas.width * 0.1143, rectY + canvas.height * 0.025); // (150, 70) → (0.2143 * width, 0.0745 * height)
     ctx.fillStyle = '#FFF';
-    ctx.fillText(`Time: ${formatTime(elapsedTime)}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.0732); // (10, 50) → (0.0143 * width, 0.0532 * height)
-    ctx.fillText(`Best: ${bestTimes[currentLevel] ? formatTime(bestTimes[currentLevel]) : '--:--:--'}`, rectX + canvas.width * 0.25, rectY + canvas.height * 0.0732); // (175, 50) → (0.25 * width, 0.0532 * height)
     ctx.fillText(`Score: ${score + getScrollScore()}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.095); // (20, 70) → (0.0143 * width, 0.0745 * height)
     ctx.fillText(`High Score: ${highScore}`, rectX + canvas.width * 0.25, rectY + canvas.height * 0.095); // (20, 100) → (0.0143 * width, 0.1064 * height)
     
@@ -2079,8 +2741,6 @@ function drawGloveIndicators() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    
 
     if (isMenuOpen) {
         drawMenu();
@@ -2117,37 +2777,7 @@ function draw() {
         }
 
         ctx.drawImage(backgroundImg, offsetX, offsetY, drawWidth, drawHeight);
-         // Draw background2.png just above backgroundImg
-     // Draw background2Img with pulsing glow effect
-    if (background2Img.complete && background2Img.naturalWidth !== 0) {
-        // Update pulse time to match platform animation
-        background2PulseTime += platformPulseSpeed / 60; // Sync with frame rate
-        const pulse = Math.sin(background2PulseTime * Math.PI * 2) * 0.01235 + 0.005;
-        
-        // Save context to isolate glow effect
-        ctx.save();
-        ctx.globalAlpha = 0.50; // Full opacity, no animation
-        ctx.shadowBlur = 10 * pulse; // Pulse between ~7 and ~13
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.68)'; // Green glow, matching platforms
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-        ctx.translate(offsetX + drawWidth / 2, offsetY + drawHeight / 2); // Center for rotation
-    ctx.rotate(pulse);
-    ctx.translate(-drawWidth / 2, -drawHeight / 2); // Adjust for image center
-    ctx.drawImage(background2Img, 0, 0, drawWidth, drawHeight);
-    
         ctx.restore();
-    }
-    if (background3Img.complete && background3Img.naturalWidth !== 0) {
-    background3PulseTime += platformPulseSpeed / 60;
-    const pulse = Math.sin(background3PulseTime * Math.PI * 2) * 0.00125 + 0.125; // Opacity from 0.6 to 1.0
-    ctx.save();
-    ctx.globalAlpha = pulse; // Animate opacity
-    ctx.drawImage(background3Img, offsetX, offsetY, drawWidth, drawHeight);
-    ctx.restore();
-}
-        ctx.restore();
-       
     }
 
     platforms.forEach(p => p.draw());
@@ -2160,59 +2790,23 @@ function draw() {
     drawTouchButtons();
     drawScoreboard();
 
-   if (levelComplete) {
-    // Reload bestTimes from localStorage to ensure latest value
-    try {
-        const storedBestTimes = localStorage.getItem('bestTimes');
-        if (storedBestTimes) {
-            bestTimes = JSON.parse(storedBestTimes);
-            console.log(`Loaded bestTimes for display: ${JSON.stringify(bestTimes)}`);
-        }
-    } catch (e) {
-        console.error('Error loading bestTimes from localStorage:', e);
+    if (levelComplete) {
+        ctx.fillStyle = '#080816ff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+         ctx.font = `${0.0571 * canvas.width}px Arial`; // 40px / 700px
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 50);
+        ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2);
+        const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
+        const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
+        const buttonX = canvas.width / 2 - buttonWidth / 2;
+        const buttonY = canvas.height / 2 + 50;
+        ctx.fillStyle = '#080816ff';
+        ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText('Next Level', canvas.width / 2, buttonY + buttonHeight / 2 + 5);
     }
-
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = `${0.0571 * canvas.width}px Arial`; // 40px / 700px
-    ctx.fillStyle = '#fff';
-    ctx.textAlign = 'center';
-
-    const offsetY = -200;
-    ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 150 + offsetY);
-    ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2 - 100 + offsetY);
-    ctx.fillText(`Time: ${formatTime(elapsedTime)}`, canvas.width / 2, canvas.height / 2 - 50 + offsetY);
-    const bestTimeText = bestTimes[currentLevel] ? formatTime(bestTimes[currentLevel]) : '--:--:--';
-    console.log(`Displaying Best Time for level ${currentLevel}: ${bestTimeText} (raw: ${bestTimes[currentLevel]})`);
-    ctx.fillText(`Best Time: ${bestTimeText}`, canvas.width / 2, canvas.height / 2 + 0 + offsetY);
-    ctx.fillText(`High Score: ${highScore}`, canvas.width / 2, canvas.height / 2 + 50 + offsetY);
-
-    const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
-    const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
-    const buttonSpacing = 0.0213 * canvas.height; // 20px / 940px
-    const buttonX = canvas.width / 2 - buttonWidth / 2;
-    const nextButtonY = canvas.height / 2 + 100 + offsetY;
-    const retryButtonY = nextButtonY + buttonHeight + buttonSpacing;
-
-    // Next Level button
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(buttonX, nextButtonY, buttonWidth, buttonHeight);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(performance.now() / 500) * 0.2})`;
-    ctx.lineWidth = canvas.width * 0.002;
-    ctx.strokeRect(buttonX, nextButtonY, buttonWidth, buttonHeight);
-    ctx.fillStyle = '#FFD700';
-    ctx.font = `${0.0286 * canvas.width}px Arial`; // 20px / 700px
-    ctx.fillText('Next Level', canvas.width / 2, nextButtonY + buttonHeight / 2 + 5);
-
-    // Retry Level button
-    ctx.fillStyle = '#080816ff';
-    ctx.fillRect(buttonX, retryButtonY, buttonWidth, buttonHeight);
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(performance.now() / 500) * 0.2})`;
-    ctx.lineWidth = canvas.width * 0.002;
-    ctx.strokeRect(buttonX, retryButtonY, buttonWidth, buttonHeight);
-    ctx.fillStyle = '#FFD700';
-    ctx.fillText('Retry Level', canvas.width / 2, retryButtonY + buttonHeight / 2 + 5);
-}
 
     if (currentEffectUpdate) {
         currentEffectUpdate((lastTime > 0 ? (performance.now() - lastTime) / 1000 : 0));
@@ -2224,27 +2818,25 @@ function draw() {
 handleResize();
 window.addEventListener('resize', handleResize);
 
-// Game loop
-let lastTime = 0;
-function gameLoop(timestamp) {
-    const deltaTime = (timestamp - lastTime) / 1000;
-    lastTime = timestamp;
-    update(deltaTime);
+   // Game loop
+    let lastTime = 0;
+    function gameLoop(timestamp) {
+        const deltaTime = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        update(deltaTime);
 
-    if (currentEffectUpdate) {
-        currentEffectUpdate(deltaTime);
+        if (currentEffectUpdate) {
+            currentEffectUpdate(deltaTime);
+        }
+        camera.position.y = -scrollY / 100;
+        renderer.render(scene, camera);
+
+        draw();
+        requestAnimationFrame(gameLoop);
     }
-    camera.position.y = -scrollY / 100;
-    
-    renderer.render(scene, camera);
-
-    draw();
-    requestAnimationFrame(gameLoop);
-}
 
     // Initialize
 handleResize();
-// setupBackground2(); // Initialize background2.png
 currentLevel = 0;
 setGameState('menu');
 requestAnimationFrame(gameLoop);

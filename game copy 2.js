@@ -1,4 +1,4 @@
-import { AudioManager } from './audio.js';
+ import { AudioManager } from './audio.js';
 import { 
     createStars, 
     createLines, 
@@ -13,8 +13,8 @@ import {
 
 // Canvas setup
 const canvas = document.getElementById('gameCanvas');
-canvas.style.zIndex = '10'; // Ensure canvas is above #dust-particles
 const ctx = canvas.getContext('2d');
+
 
 
 // Load assets (including background)
@@ -43,6 +43,14 @@ const audioManager = new AudioManager();
 audioManager.setMusicVolume(parseFloat(localStorage.getItem('musicVolume') || '0.35'));
 audioManager.setSfxVolume(parseFloat(localStorage.getItem('sfxVolume') || '1.0'));
 
+const ballMenuAnimations = [
+    { speed: 2, baseX: 0, amplitude: 20 }, // Ball 1: Fast bounce, high amplitude
+    { speed: 1.5, baseX: 0, amplitude: 15 }, // Ball 2: Medium bounce, medium amplitude
+    { speed: 3, baseX: 0, amplitude: 10 }, // Ball 3: Very fast bounce, low amplitude
+    { speed: 1, baseX: 0, amplitude: 25 }, // Ball 4: Slow bounce, high amplitude
+    { speed: 2.5, baseX: 0, amplitude: 12 }, // Ball 5: Fast bounce, low amplitude
+];
+
 // Background2 glow animation
 let background2PulseTime = 0; // Track pulse animation for background2Img
 let background3PulseTime = 0; // For background3Img animations
@@ -50,45 +58,34 @@ let boostUsed = false; // Track if boost has been used
 // Game state (example: 'menu' or 'game')
 let gameState = 'menu'; // Adjust based on your game's state management
 let showControlsOnPC = localStorage.getItem('showControlsOnPC') === 'true' || true;
-// Particles.js setup for dust effect
-let dustParticleSystem = null;
-let dustParticleTrigger = false;
-let dustParticleX = 0;
-let dustParticleY = 0;
+let elapsedTime = 0; // Current level's elapsed time in seconds
+let bestTimes = JSON.parse(localStorage.getItem('bestTimes')) || {};
+console.log('Initialized bestTimes:', bestTimes); 
+// Object to store best times per level
+let showClearConfirmation = false;
+let clearConfirmationTimer = 0; // Timer for confirmation message duration
 
-// Initialize Particles.js after DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    const particlesContainer = document.createElement('div');
-    particlesContainer.id = 'dust-particles';
-    particlesContainer.style.position = 'absolute';
-    particlesContainer.style.width = '640px';
-    particlesContainer.style.height = '1100px';
-    particlesContainer.style.zIndex = '5';
-    particlesContainer.style.pointerEvents = 'none'; // Allow events to pass through
-    particlesContainer.style.display = 'none'; // Hidden initially
-    document.body.appendChild(particlesContainer);
-
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js';
-    script.onload = () => {
-        particlesJS('dust-particles', {
-            particles: {
-                number: { value: 0 },
-                color: { value: '#cccccc' },
-                shape: { type: 'circle' },
-                opacity: { value: 0.5, random: true },
-                size: { value: 2, random: true, anim: { enable: false } },
-                line_linked: { enable: false },
-                move: { enable: true, speed: 3, direction: 'none', random: true, straight: false, out_mode: 'out' }
-            },
-            interactivity: { events: { onhover: { enable: false }, onclick: { enable: false } } },
-            retina_detect: true
-        });
-        dustParticleSystem = window.pJSDom[0].pJS;
-    };
-    document.head.appendChild(script);
-});
-
+    // Ball selection
+    const ballSize = 40;
+    const ballSpacing = canvas.width / 6;
+    const ballYBase = canvas.height / 2 - 300;
+    const time = performance.now() / 1000;
+    for (let i = 0; i < 5; i++) {
+        const ball = balls[i];
+        if (!ball || !ball.unlocked) continue;
+        const animation = ballMenuAnimations[i];
+        const x = ballSpacing * (i + 1) - ballSize / 2;
+        const y = ballYBase + Math.sin(time * animation.speed) * animation.amplitude;
+        const radius = ballSize / 2;
+        const dx = canvasX - x;
+        const dy = canvasY - y;
+        if (dx * dx + dy * dy <= radius * radius) {
+            currentBall = i;
+            console.log(`Selected ball ${i}`);
+            audioManager.playSfx('levelSelect');
+            return true;
+        }
+    }
 
 // Reference to game container
 const gameContainer = document.getElementById('game-container');
@@ -97,18 +94,16 @@ const gameContainer = document.getElementById('game-container');
 
 // Function to update visibility of menu-only elements
 function updateMenuElementsVisibility() {
-    console.log(`Updating visibility, gameState: ${gameState}, isMenuOpen: ${isMenuOpen}`);
-    const particlesContainer = document.getElementById('dust-particles');
+    console.log(`Updating visibility, gameState: ${gameState}`);
     if (gameState === 'menu') {
         gameContainer.classList.add('menu-active');
-        if (particlesContainer) particlesContainer.style.display = 'none';
-        console.log('Menu active: Showing canvas-drawn controls, hiding dust particles');
+        console.log('Menu active: Showing canvas-drawn controls');
     } else {
         gameContainer.classList.remove('menu-active');
-        if (particlesContainer) particlesContainer.style.display = 'block';
-        console.log('Game active: Hiding canvas-drawn controls, showing dust particles');
+        console.log('Game active: Hiding canvas-drawn controls');
     }
 }
+
 // Audio control state for canvas rendering
 const audioControls = {
     musicVolume: {
@@ -170,7 +165,6 @@ if ('mediaSession' in navigator) {
 // Function to switch game state
 function setGameState(newState) {
     gameState = newState;
-    isMenuOpen = newState === 'menu'; // Sync isMenuOpen with gameState
     updateMenuElementsVisibility();
     if (gameState === 'menu') {
         audioManager.playMenuBgm();
@@ -181,7 +175,6 @@ function setGameState(newState) {
 
 // Three.js setup
 const backgroundDiv = document.getElementById('background');
-backgroundDiv.style.zIndex = '0';
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(canvas.width, canvas.height);
 renderer.setPixelRatio(window.devicePixelRatio); // Improve rendering on high-DPI devices
@@ -529,8 +522,6 @@ class Player {
         this.rotation = 0;
         this.boostActive = false;
         this.gloveCount = 0; // Track collected gloves
-        this.wasOnPlatform = false; // Track previous collision state
-        
     }
     update(deltaTime) {
         if (this.boostActive) {
@@ -538,7 +529,7 @@ class Player {
         } else {
             this.vy += this.gravity * deltaTime;
         }
-        this.x += this.vx * deltaTime * (this.boostActive ? 1.65 : 1); // 1.5x speed when boosted
+        this.x += this.vx * deltaTime * (this.boostActive ? 1.5 : 1); // 1.5x speed when boosted
         this.y += this.vy * deltaTime;
         if (this.x < 0) this.x = canvas.width;
         else if (this.x > canvas.width) this.x = 0;
@@ -555,32 +546,7 @@ class Player {
         if (this.boostActive && this.vy < 0 && Math.abs(this.vy) < 100) {
             this.boostActive = false; // Deactivate after peak jump
         }
-
-
-     // Collision detection with platforms
-        let isOnPlatform = false;
-        platforms.forEach(platform => {
-            if (
-                this.vy > 0 && // Moving downward
-                this.x + this.width / 2 > platform.x &&
-                this.x - this.width / 2 < platform.x + platform.width &&
-                this.y + this.height / 2 >= platform.y - scrollY &&
-                this.y + this.height / 2 <= platform.y - scrollY + 20 // Small collision window
-            ) {
-                isOnPlatform = true;
-                this.y = platform.y - scrollY - this.height / 2; // Snap to platform top
-                this.vy = -550; // Bounce (normal jump height)
-                if (!this.wasOnPlatform) { // New collision
-                    dustParticleTrigger = true;
-                    dustParticleX = this.x - 20; // Center of particle system
-                    dustParticleY = this.y + this.height / 2 - scrollY - 20; // Bottom of player
-                    audioManager.playSfx('land'); // Optional: play landing sound
-                }
-            }
-        });
-        this.wasOnPlatform = isOnPlatform; // Update collision state
     }
-
     draw() {
         const screenY = this.y - scrollY;
         ctx.save();
@@ -962,9 +928,8 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-let lastMenuClick = 0;
-const MENU_CLICK_DEBOUNCE = 200; // 200ms debounce
-
+let lastInputTime = 0;
+const INPUT_DEBOUNCE = 200; // 200ms
 
 // Unified input handler for click and touch events
 function handleInputEvent(e, isTouch = false) {
@@ -983,6 +948,19 @@ function handleInputEvent(e, isTouch = false) {
     }
     console.log(`Input at (${canvasX.toFixed(2)}, ${canvasY.toFixed(2)}), gameState=${gameState}, isMenuOpen=${isMenuOpen}, currentLevel=${currentLevel}`);
 
+    // Menu button during gameplay
+    if (
+        !isMenuOpen &&
+        !isPaused &&
+        currentLevel !== 0 &&
+        Math.sqrt((canvasX - (menuButton.x + menuButton.size / 2)) ** 2 + (canvasY - (menuButton.y + menuButton.size / 2)) ** 2) <= menuButton.size / 2
+    ) {
+        console.log('Menu button clicked');
+        toggleMenu(true);
+        return true;
+    }
+
+    // Menu interactions
     if (isMenuOpen || currentLevel === 0) {
         const ballButton = { x: canvas.width / 2 - 85, y: canvas.height / 2 - 300, width: 170, height: 40 };
         console.log(`Checking ball button: x[${ballButton.x}, ${ballButton.x + ballButton.width}], y[${ballButton.y}, ${ballButton.y + ballButton.height}]`);
@@ -992,31 +970,93 @@ function handleInputEvent(e, isTouch = false) {
             canvasY >= ballButton.y &&
             canvasY <= ballButton.y + ballButton.height
         ) {
-            console.log('Select Ball button hit');
+            console.log('Ball selection button clicked, calling showBallSelectionPopup');
             showBallSelectionPopup();
             audioManager.playSfx('ballSelect');
             return true;
         }
 
-        for (let level = 1; level <= 100; level++) {
-            if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue;
-            const row = Math.floor((level - 1) / LEVELS_PER_ROW);
-            const col = (level - 1) % LEVELS_PER_ROW;
-            const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
-            const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
-            if (
-                canvasX >= x &&
-                canvasX <= x + BUTTON_WIDTH &&
-                canvasY >= y &&
-                canvasY <= y + BUTTON_HEIGHT
-            ) {
-                console.log(`Level ${level} button hit`);
-                resetLevel(level);
-                isPaused = false;
-                audioManager.playSfx('levelSelect');
-                return true;
-            }
+        // Level selection grid
+if (isMenuOpen || currentLevel === 0) {
+    let lastLevelSelectTime = 0;
+    const LEVEL_SELECT_DEBOUNCE = 500;
+    const currentTime = performance.now();
+
+    // Ball selection
+    const ballSize = 40;
+    const ballSpacing = canvas.width / 6;
+    const ballYBase = canvas.height / 2 - 300;
+    const time = performance.now() / 1000;
+    for (let i = 0; i < 5; i++) {
+        const ball = balls[i];
+        if (!ball || !ball.unlocked) continue;
+        const animation = ballMenuAnimations[i];
+        const x = ballSpacing * (i + 1) - ballSize / 2;
+        const y = ballYBase + Math.sin(time * animation.speed) * animation.amplitude;
+        const radius = ballSize / 2;
+        const dx = canvasX - x;
+        const dy = canvasY - y;
+        if (dx * dx + dy * dy <= radius * radius) {
+            currentBall = i;
+            console.log(`Selected ball ${i}`);
+            audioManager.playSfx('levelSelect');
+            return true;
         }
+    }
+
+
+    for (let level = 1; level <= 100; level++) {
+        if (level > highestLevelCompleted + 1 && !allLevelsUnlocked) continue;
+        const row = Math.floor((level - 1) / LEVELS_PER_ROW);
+        const col = (level - 1) % LEVELS_PER_ROW;
+        const x = GRID_START_X + col * (BUTTON_WIDTH + BUTTON_SPACING);
+        const y = GRID_START_Y + row * (BUTTON_HEIGHT + BUTTON_SPACING);
+        if (
+            canvasX >= x &&
+            canvasX <= x + BUTTON_WIDTH &&
+            canvasY >= y &&
+            canvasY <= y + BUTTON_HEIGHT &&
+            currentTime - lastLevelSelectTime > LEVEL_SELECT_DEBOUNCE
+        ) {
+            resetLevel(level);
+            lastLevelSelectTime = currentTime;
+            isPaused = false;
+            isMenuOpen = false;
+            gameState = 'game';
+            updateMenuElementsVisibility();
+            audioManager.playSfx('levelSelect');
+            console.log(`Selected level ${level}`);
+            return true;
+        }
+    }
+}
+    // Clear Stale Data button
+    const clearButton = {
+        x: canvas.width / 2 - 85,
+        y: canvas.height / 2 + 410,
+        width: 170,
+        height: 40
+    };
+    if (
+        canvasX >= clearButton.x &&
+        canvasX <= clearButton.x + clearButton.width &&
+        canvasY >= clearButton.y &&
+        canvasY <= clearButton.y + clearButton.height
+    ) {
+         try {
+            localStorage.removeItem('bestTimes');
+            localStorage.removeItem('highScore');
+            bestTimes = {};
+            highScore = 0;
+            console.log('Cleared bestTimes and highScore from localStorage');
+            showClearConfirmation = true;
+            clearConfirmationTimer = 0;
+            audioManager.playSfx('levelSelect');
+        } catch (e) {
+            console.error('Error clearing bestTimes or highScore from localStorage:', e);
+        }
+        return true;
+    }
 
         // Close button
         const closeButton = { x: canvas.width / 2 - 50, y: canvas.height / 2 + 360, width: 100, height: 40 };
@@ -1115,28 +1155,52 @@ function handleInputEvent(e, isTouch = false) {
     }
 
     // Level completion screen
-    if (levelComplete) {
-        const buttonWidth = 200;
-        const buttonHeight = 50;
-        const buttonX = canvas.width / 2 - buttonWidth / 2;
-        const buttonY = canvas.height / 2 + 50;
-        if (
-            canvasX >= buttonX &&
-            canvasX <= buttonX + buttonWidth &&
-            canvasY >= buttonY &&
-            canvasY <= buttonY + buttonHeight
-        ) {
-            if (currentLevel > highestLevelCompleted) {
-                highestLevelCompleted = currentLevel;
-                localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
-            }
-            resetLevel(currentLevel + 1);
-            isPaused = false;
-            audioManager.playSfx('levelSelect');
-            return true;
+   if (levelComplete) {
+    const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
+    const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
+    const buttonSpacing = 0.0213 * canvas.height; // 20px / 940px
+    const buttonX = canvas.width / 2 - buttonWidth / 2;
+    const offsetY = -200;
+    const nextButtonY = canvas.height / 2 + 100 + offsetY;
+    const retryButtonY = nextButtonY + buttonHeight + buttonSpacing;
+
+    console.log(`Input at (${canvasX.toFixed(2)}, ${canvasY.toFixed(2)}), checking buttons: Next [${buttonX}, ${nextButtonY}, ${buttonWidth}, ${buttonHeight}], Retry [${buttonX}, ${retryButtonY}, ${buttonWidth}, ${buttonHeight}]`);
+
+    // Next Level button
+    if (
+        canvasX >= buttonX &&
+        canvasX <= buttonX + buttonWidth &&
+        canvasY >= nextButtonY &&
+        canvasY <= nextButtonY + buttonHeight
+    ) {
+        console.log(`Next Level button clicked for level ${currentLevel + 1}`);
+        if (currentLevel > highestLevelCompleted) {
+            highestLevelCompleted = currentLevel;
+            localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
+            console.log(`Updated highestLevelCompleted: ${highestLevelCompleted}`);
         }
+        resetLevel(currentLevel + 1);
+        isPaused = false;
+        audioManager.playSfx('levelSelect');
+        return true;
     }
 
+    // Retry Level button
+    if (
+        canvasX >= buttonX &&
+        canvasX <= buttonX + buttonWidth &&
+        canvasY >= retryButtonY &&
+        canvasY <= retryButtonY + buttonHeight
+    ) {
+        console.log(`Retry Level button clicked for level ${currentLevel}`);
+        resetLevel(currentLevel);
+        isPaused = false;
+        audioManager.playSfx('levelSelect');
+        return true;
+    }
+    console.log('Input ignored: Outside button bounds');
+    return false;
+}
     return false;
 }
 //Dedicated Menu Toggle Function
@@ -1218,12 +1282,11 @@ window.addEventListener('keydown', (e) => keys.add(e.key));
 window.addEventListener('keyup', (e) => keys.delete(e.key));
 
 // Game functions
-function getScrollScore() {
-    return -Math.floor(scrollY / 10);
-}
-
 function getTotalScore() {
     return score + getScrollScore();
+}
+function getScrollScore() {
+    return -Math.floor(scrollY / 10);
 }
 
 function getNextPlatformDistance() {
@@ -1298,6 +1361,7 @@ function resetLevel(level) {
     currentLevel = level;
     levelComplete = false;
     levelPauseTime = 0;
+    elapsedTime = 0; // Reset timer
     isMenuOpen = false; // Close menu when starting a level
     
     setupLevelEffect(level);
@@ -1314,6 +1378,10 @@ function update(deltaTime) {
         levelPauseTime += deltaTime * 1000;
         return;
     }
+
+ // Increment timer
+    elapsedTime += deltaTime;
+    console.log(`Elapsed time: ${elapsedTime.toFixed(3)}s`); // Debug log
 
     player.handleInput();
     player.update(deltaTime);
@@ -1367,17 +1435,47 @@ function update(deltaTime) {
     gloves = gloves.filter(g => g.y <= scrollY + canvas.height + 100);
 
     const totalScore = getTotalScore();
-    if (totalScore >= currentLevel * 1000) {
-        levelComplete = true;
-        audioManager.playSfx('levelComplete');
-    }
-    if (totalScore > highScore) {
-        highScore = totalScore;
-        localStorage.setItem('highScore', highScore);
-    }
+console.log(`Total score: ${totalScore}, scrollScore: ${getScrollScore()}, score: ${score}`); // Debug log
 
+
+if (totalScore >= currentLevel * 1000 && !levelComplete) {
+    console.log(`Level ${currentLevel} completed, elapsedTime: ${elapsedTime.toFixed(3)}s`);
+    levelComplete = true;
+    audioManager.playSfx('levelComplete');
+    // Save best time if better or not set
+    if (!bestTimes[currentLevel] || elapsedTime < bestTimes[currentLevel]) {
+        bestTimes[currentLevel] = elapsedTime;
+        try {
+            localStorage.setItem('bestTimes', JSON.stringify(bestTimes));
+            console.log(`Saved best time for level ${currentLevel}: ${formatTime(elapsedTime)}`);
+            console.log(`Current localStorage bestTimes: ${localStorage.getItem('bestTimes')}`);
+        } catch (e) {
+            console.error('Error saving bestTimes to localStorage:', e);
+        }
+    } else {
+        console.log(`Best time not updated for level ${currentLevel}. Current: ${formatTime(bestTimes[currentLevel])}, New: ${formatTime(elapsedTime)}`);
+    }
+    // Update highest level completed
+    if (currentLevel > highestLevelCompleted) {
+        highestLevelCompleted = currentLevel;
+        localStorage.setItem('highestLevelCompleted', highestLevelCompleted);
+        console.log(`Updated highestLevelCompleted: ${highestLevelCompleted}`);
+    }
+}
+    if (totalScore > highScore) {
+    highScore = totalScore;
+    localStorage.setItem('highScore', highScore);
+    console.log(`Updated highScore: ${highScore}`);
+}
     if (player.y > scrollY + canvas.height + 50) {
         resetLevel(currentLevel);
+    }
+     if (showClearConfirmation) {
+        clearConfirmationTimer += deltaTime;
+        if (clearConfirmationTimer >= 2) { // Show for 2 seconds
+            showClearConfirmation = false;
+            clearConfirmationTimer = 0;
+        }
     }
 }
 
@@ -1389,6 +1487,13 @@ const BUTTON_SPACING = 10;
 const GRID_START_X = (canvas.width - (LEVELS_PER_ROW * (BUTTON_WIDTH + BUTTON_SPACING) - BUTTON_SPACING)) / 1.65;
 const GRID_START_Y = canvas.height / 2 - 120;
 
+
+function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    const millis = Math.round((seconds % 1) * 1000);
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+}
 
 // Function to create three subtle wavy circular gradient glows side by side around Alyup.png
 function createGradientBorder(ctx, img, x, y, width, height, time) {
@@ -1744,6 +1849,32 @@ function drawMenu() {
         createGradientBorder(ctx, alyupImg, x, y, imgWidth, imgHeight, time);
         createGradientBorder2(ctx, alyupImg, x, y, imgWidth, imgHeight, time);
     }
+
+ // Draw bouncing balls below Alyup.png
+    const ballSize = 40; // Diameter of each ball (adjust as needed)
+    const ballSpacing = canvas.width / 6; // Space balls evenly across canvas
+    const ballYBase = canvas.height / 2 - 300; // Below Alyup.png (~170px)
+    for (let i = 0; i < 5; i++) {
+        const ball = balls[i];
+        if (!ball || !ball.img || !ball.img.complete || ball.img.naturalHeight === 0) continue;
+        const isUnlocked = ball.unlocked; // Assume unlocked property or function
+        const animation = ballMenuAnimations[i];
+        animation.baseX = ballSpacing * (i + 1) - ballSize / 2; // Center of each ball
+        const bounceOffset = Math.sin(time * animation.speed) * animation.amplitude;
+        const x = animation.baseX;
+        const y = ballYBase + bounceOffset;
+        ctx.globalAlpha = isUnlocked ? 1 : 0.3; // Dim locked balls
+        ctx.drawImage(ball.img, x - ballSize / 2, y - ballSize / 2, ballSize, ballSize);
+        if (i === currentBall) {
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`;
+            ctx.lineWidth = Math.sin(time * 2) * 2 + 3;
+            ctx.beginPath();
+            ctx.arc(x, y, ballSize / 2 + 3, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1; // Reset alpha
+    }
+
     // Ball selection button
     const ballButton = {
         x: canvas.width / 2 - 85,
@@ -1797,6 +1928,30 @@ ctx.fillStyle = '#fff';
 ctx.font = '22px Arial';
 ctx.fillText('CLOSE', canvas.width / 2 - 1, closeButton.y + 28);
 
+   // Clear Stale Data button
+    const clearButton = {
+        x: canvas.width / 2 - 50, // Wider than CLOSE for text fit
+        y: canvas.height / 2 + 410, // Below CLOSE button (360 + 40 + 10 spacing)
+        width: 100,
+        height: 40
+    };
+   ctx.fillStyle = '#080816ff';
+    ctx.fillRect(clearButton.x, clearButton.y, clearButton.width, clearButton.height);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(time * 2) * 0.2})`;
+    ctx.lineWidth = Math.sin(time * 2) * 2 + 3; // outlinePulse
+    ctx.strokeRect(clearButton.x, clearButton.y, clearButton.width, clearButton.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px Arial';
+    ctx.fillText('CLEAR DATA', canvas.width / 2 - 2, clearButton.y + 24);
+
+    // Confirmation message
+    if (showClearConfirmation) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(canvas.width / 2 - 150, canvas.height / 2 - 50, 300, 100);
+        ctx.fillStyle = '#fff';
+        ctx.font = '30px Arial';
+        ctx.fillText('Best Times & High Score Cleared!', canvas.width / 2, canvas.height / 2 + 10);
+    }
 
     // Unlock All Levels button
     const unlockButton = { x: 10, y: 10, width: 50, height: 50 };
@@ -1869,7 +2024,7 @@ ctx.fillText('CLOSE', canvas.width / 2 - 1, closeButton.y + 28);
     }
     ctx.fillStyle = 'white';
     ctx.font = '14px Arial';
-    ctx.fillText('Show Controls on PC', audioControls.showControls.x + 95, audioControls.showControls.y + 15);
+    ctx.fillText('Show Controls on PC', audioControls.showControls.x + 95, audioControls.showControls.y + 20);
     ctx.restore();
 }
 
@@ -1950,6 +2105,8 @@ function drawScoreboard() {
     ctx.fillText('ALYUP', rectX + canvas.width * 0.0143, rectY + canvas.height * 0.025); // (20, 40) → (0.0143 * width, 0.0426 * height)
     ctx.fillText(`Level: ${currentLevel}`, rectX + canvas.width * 0.1143, rectY + canvas.height * 0.025); // (150, 70) → (0.2143 * width, 0.0745 * height)
     ctx.fillStyle = '#FFF';
+    ctx.fillText(`Time: ${formatTime(elapsedTime)}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.0732); // (10, 50) → (0.0143 * width, 0.0532 * height)
+    ctx.fillText(`Best: ${bestTimes[currentLevel] ? formatTime(bestTimes[currentLevel]) : '--:--:--'}`, rectX + canvas.width * 0.25, rectY + canvas.height * 0.0732); // (175, 50) → (0.25 * width, 0.0532 * height)
     ctx.fillText(`Score: ${score + getScrollScore()}`, rectX + canvas.width * 0.0143, rectY + canvas.height * 0.095); // (20, 70) → (0.0143 * width, 0.0745 * height)
     ctx.fillText(`High Score: ${highScore}`, rectX + canvas.width * 0.25, rectY + canvas.height * 0.095); // (20, 100) → (0.0143 * width, 0.1064 * height)
     
@@ -2059,12 +2216,7 @@ function draw() {
     
     
 
-     if (isMenuOpen || currentLevel === 0) {
-        if (dustParticleSystem) {
-            dustParticleSystem.particles.number.value = 0; // Clear particles
-            dustParticleSystem.fn.particlesRefresh(); // Refresh to apply changes
-            document.getElementById('dust-particles').style.display = 'none';
-        }
+    if (isMenuOpen) {
         drawMenu();
         return;
     }
@@ -2075,10 +2227,6 @@ function draw() {
     }
 
     updateOpacityAnimation((lastTime > 0 ? (performance.now() - lastTime) / 1000 : 0));
-
- if (dustParticleSystem) {
-        document.getElementById('dust-particles').style.display = 'block'; // Show during gameplay
-    }
 
     if (backgroundImg.complete && backgroundImg.naturalHeight !== 0) {
         ctx.save();
@@ -2109,23 +2257,24 @@ function draw() {
         // Update pulse time to match platform animation
         background2PulseTime += platformPulseSpeed / 60; // Sync with frame rate
         const pulse = Math.sin(background2PulseTime * Math.PI * 2) * 0.01235 + 0.005;
-        const parallaxY = scrollY * 0.0055; // Slight parallax effect (10% of scrollY)
+        
         // Save context to isolate glow effect
         ctx.save();
         ctx.globalAlpha = 0.50; // Full opacity, no animation
         ctx.shadowBlur = 10 * pulse; // Pulse between ~7 and ~13
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.43)'; // Green glow, matching platforms
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.68)'; // Green glow, matching platforms
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
-        ctx.translate(offsetX + drawWidth / 2, offsetY + parallaxY + drawHeight / 2); // Apply parallax
-        ctx.rotate(pulse);
-        ctx.translate(-drawWidth / 2, -drawHeight / 2); // Adjust for image center
-        ctx.drawImage(background2Img, 0, 0, drawWidth, drawHeight);
+        ctx.translate(offsetX + drawWidth / 2, offsetY + drawHeight / 2); // Center for rotation
+    ctx.rotate(pulse);
+    ctx.translate(-drawWidth / 2, -drawHeight / 2); // Adjust for image center
+    ctx.drawImage(background2Img, 0, 0, drawWidth, drawHeight);
+    
         ctx.restore();
     }
     if (background3Img.complete && background3Img.naturalWidth !== 0) {
     background3PulseTime += platformPulseSpeed / 60;
-    const pulse = Math.sin(background3PulseTime * Math.PI * 2) * 0.01 + 0.15; // Opacity from 0.6 to 1.0
+    const pulse = Math.sin(background3PulseTime * Math.PI * 2) * 0.00125 + 0.125; // Opacity from 0.6 to 1.0
     ctx.save();
     ctx.globalAlpha = pulse; // Animate opacity
     ctx.drawImage(background3Img, offsetX, offsetY, drawWidth, drawHeight);
@@ -2135,67 +2284,75 @@ function draw() {
        
     }
 
-     // Draw dust particles if triggered
-    if (dustParticleTrigger && dustParticleSystem) {
-        dustParticleSystem.particles.number.value = 0; // Clear existing particles
-        dustParticleSystem.fn.particlesRefresh(); // Refresh to clear
-        particlesJS('dust-particles', {
-            particles: {
-                number: { value: 20, density: { enable: false } },
-                color: { value: '#cccccc' },
-                shape: { type: 'circle' },
-                opacity: { value: 0.5, random: true, anim: { enable: true, speed: 1, opacity_min: 0, sync: false } },
-                size: { value: 2, random: true },
-                line_linked: { enable: false },
-                move: {
-                    enable: true,
-                    speed: 3,
-                    direction: 'none',
-                    random: true,
-                    straight: false,
-                    out_mode: 'out',
-                    bounce: false,
-                    attract: { enable: false }
-                }
-            },
-            interactivity: { events: { onhover: { enable: false }, onclick: { enable: false } } },
-            retina_detect: true
-        });
-        dustParticleSystem = window.pJSDom[0].pJS;
-        dustParticleSystem.canvas.el.style.left = `${dustParticleX}px`;
-        dustParticleSystem.canvas.el.style.top = `${dustParticleY}px`;
-        dustParticleTrigger = false;
-    }
-
-    
     platforms.forEach(p => p.draw());
     movingPlatforms.forEach(p => p.draw());
     gloves.forEach(g => g.draw());
     player.draw();
-    
 
     
     drawGloveIndicators();
     drawTouchButtons();
     drawScoreboard();
 
-    if (levelComplete) {
-        ctx.fillStyle = '#080816ff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-         ctx.font = `${0.0571 * canvas.width}px Arial`; // 40px / 700px
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 50);
-        ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2);
-        const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
-        const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
-        const buttonX = canvas.width / 2 - buttonWidth / 2;
-        const buttonY = canvas.height / 2 + 50;
-        ctx.fillStyle = '#080816ff';
-        ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
-        ctx.fillStyle = '#FFD700';
-        ctx.fillText('Next Level', canvas.width / 2, buttonY + buttonHeight / 2 + 5);
+   if (levelComplete) {
+    // Reload bestTimes from localStorage to ensure latest value
+   
+try {
+    const storedBestTimes = localStorage.getItem('bestTimes');
+    if (storedBestTimes) {
+        bestTimes = JSON.parse(storedBestTimes);
+        console.log('Initialized bestTimes:', bestTimes);
     }
+    const storedHighScore = localStorage.getItem('highScore');
+    if (storedHighScore) {
+        highScore = parseInt(storedHighScore, 10);
+        console.log('Initialized highScore:', highScore);
+    }
+} catch (e) {
+    console.error('Error loading bestTimes or highScore from localStorage:', e);
+}
+
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = `${0.0571 * canvas.width}px Arial`; // 40px / 700px
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+
+    const offsetY = -200;
+    ctx.fillText(`Level ${currentLevel} Complete!`, canvas.width / 2, canvas.height / 2 - 150 + offsetY);
+    ctx.fillText(`Score: ${getTotalScore()}`, canvas.width / 2, canvas.height / 2 - 100 + offsetY);
+    ctx.fillText(`Time: ${formatTime(elapsedTime)}`, canvas.width / 2, canvas.height / 2 - 50 + offsetY);
+    const bestTimeText = bestTimes[currentLevel] ? formatTime(bestTimes[currentLevel]) : '--:--:--';
+    console.log(`Displaying Best Time for level ${currentLevel}: ${bestTimeText} (raw: ${bestTimes[currentLevel]})`);
+    ctx.fillText(`Best Time: ${bestTimeText}`, canvas.width / 2, canvas.height / 2 + 0 + offsetY);
+    ctx.fillText(`High Score: ${highScore}`, canvas.width / 2, canvas.height / 2 + 50 + offsetY);
+
+    const buttonWidth = 0.2857 * canvas.width; // 200px / 700px
+    const buttonHeight = 0.0532 * canvas.height; // 50px / 940px
+    const buttonSpacing = 0.0213 * canvas.height; // 20px / 940px
+    const buttonX = canvas.width / 2 - buttonWidth / 2;
+    const nextButtonY = canvas.height / 2 + 100 + offsetY;
+    const retryButtonY = nextButtonY + buttonHeight + buttonSpacing;
+
+    // Next Level button
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(buttonX, nextButtonY, buttonWidth, buttonHeight);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(performance.now() / 500) * 0.2})`;
+    ctx.lineWidth = canvas.width * 0.002;
+    ctx.strokeRect(buttonX, nextButtonY, buttonWidth, buttonHeight);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = `${0.0286 * canvas.width}px Arial`; // 20px / 700px
+    ctx.fillText('Next Level', canvas.width / 2, nextButtonY + buttonHeight / 2 + 5);
+
+    // Retry Level button
+    ctx.fillStyle = '#080816ff';
+    ctx.fillRect(buttonX, retryButtonY, buttonWidth, buttonHeight);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + Math.sin(performance.now() / 500) * 0.2})`;
+    ctx.lineWidth = canvas.width * 0.002;
+    ctx.strokeRect(buttonX, retryButtonY, buttonWidth, buttonHeight);
+    ctx.fillStyle = '#FFD700';
+    ctx.fillText('Retry Level', canvas.width / 2, retryButtonY + buttonHeight / 2 + 5);
+}
 
     if (currentEffectUpdate) {
         currentEffectUpdate((lastTime > 0 ? (performance.now() - lastTime) / 1000 : 0));
